@@ -1,13 +1,14 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { ChevronLeft } from "lucide-react";
+import { ChevronLeft, Trash2 } from "lucide-react";
 import Link from "next/link";
-import { useParams, usePathname } from "next/navigation";
+import { useParams, usePathname, useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { Callout, ErrorBlock, LoadingBlock, StatusBadge } from "@/components/common";
 import { DealContext } from "@/components/deal-context";
+import { Button } from "@/components/ui/button";
 import { Badge, Select } from "@/components/ui/primitives";
 import { useFeatures, useOrgKey, useProperty, useScenarios } from "@/hooks/queries";
 import { api } from "@/lib/api";
@@ -31,6 +32,7 @@ const TABS: { slug: string; label: string; feature?: string }[] = [
 export default function DealLayout({ children }: { children: React.ReactNode }) {
   const { id } = useParams<{ id: string }>();
   const pathname = usePathname();
+  const router = useRouter();
   const { hasRole } = useAuth();
   const org = useOrgKey();
   const qc = useQueryClient();
@@ -38,12 +40,23 @@ export default function DealLayout({ children }: { children: React.ReactNode }) 
   const scenarios = useScenarios(id);
   const features = useFeatures();
   const canEdit = hasRole("analyst");
+  const canDelete = hasRole("admin");
 
   const setStatus = useMutation({
     mutationFn: (status: string) => api(`/api/properties/${id}`, { method: "PATCH", body: { status } }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: [org] });
       toast.success("Status updated");
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const deleteDeal = useMutation({
+    mutationFn: () => api(`/api/properties/${id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      router.push("/deals");
+      qc.invalidateQueries({ queryKey: [org] });
+      toast.success("Deal deleted");
     },
     onError: (e) => toast.error(e.message),
   });
@@ -93,6 +106,21 @@ export default function DealLayout({ children }: { children: React.ReactNode }) 
                   </option>
                 ))}
               </Select>
+              {canDelete && (
+                <Button
+                  variant="outline"
+                  size="icon"
+                  aria-label="Delete deal"
+                  title="Delete deal"
+                  className="text-destructive hover:bg-destructive/10"
+                  loading={deleteDeal.isPending}
+                  onClick={() => {
+                    if (confirm(`Delete "${stripDemo(p.name)}"? It will be removed from your deals and dashboard.`)) deleteDeal.mutate();
+                  }}
+                >
+                  <Trash2 />
+                </Button>
+              )}
             </div>
           )}
         </div>
