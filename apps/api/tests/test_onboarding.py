@@ -34,3 +34,18 @@ def test_onboarding_is_scoped_to_the_workspace(client, owner, prop):
     other = register(client)
     assert owner.get("/api/org/onboarding").json()["steps"]["deal_created"] is True
     assert other.get("/api/org/onboarding").json()["steps"]["deal_created"] is False
+
+
+def test_progress_counts_only_my_recent_work(client):
+    s = register(client, seed=True, org="Progress Co")
+    assert s.get("/api/org/progress").json() == {
+        "days": 7, "counts": {"deals_created": 0, "documents_uploaded": 0, "fields_verified": 0,
+                              "scenarios_explored": 0, "reports_generated": 0, "analyst_questions": 0}}
+    pid = s.post("/api/properties", json=MF_PROPERTY).json()["id"]
+    s.post(f"/api/properties/{pid}/scenarios/defaults")
+    s.get(f"/api/properties/{pid}/reports/one-pager")
+    counts = s.get("/api/org/progress").json()["counts"]
+    assert counts["deals_created"] == 1 and counts["reports_generated"] == 1
+    assert counts["scenarios_explored"] == 1  # 'Create default cases'
+    # Another member's view only counts their own work.
+    assert register(client).get("/api/org/progress?days=500").json()["days"] == 90

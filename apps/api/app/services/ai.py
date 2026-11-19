@@ -156,11 +156,21 @@ or bullets. You may draft narrative sections when asked, marking them as drafts 
 6. If the deal is marked as demo data, remind the user that figures are fictional when relevant."""
 
 
-def stream_analyst(context: dict[str, Any], history: list[dict[str, str]], question: str) -> Iterator[str]:
+LEARNING_SYSTEM = """Learning mode is ON: the user is new to commercial real estate. In addition to the \
+answer, teach the concept behind it. Define each term in plain English the first time you use it, show the \
+formula with this deal's own inputs and result from <deal_context>, say what typical lenders or investors look \
+for (as general guidance, not market data), and end with one short question the user can ask next to go \
+deeper. The rules above still apply: never compute or invent figures that are not in <deal_context>."""
+
+
+def stream_analyst(context: dict[str, Any], history: list[dict[str, str]], question: str,
+                   learning: bool = False) -> Iterator[str]:
     client = _client()
     system = [{"type": "text", "text": ANALYST_SYSTEM},
               {"type": "text", "text": "<deal_context>\n" + json.dumps(context, default=str, indent=1)
                + "\n</deal_context>", "cache_control": {"type": "ephemeral"}}]
+    if learning:  # after the cached prefix, so toggling it does not invalidate the cache
+        system.append({"type": "text", "text": LEARNING_SYSTEM})
     messages = [*history, {"role": "user", "content": question}]
     with client.beta.messages.stream(
         model=model_name(),

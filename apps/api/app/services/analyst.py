@@ -49,8 +49,59 @@ def build_context(ctx: OrgContext, prop: Property, scenario: Scenario, result: d
     }
 
 
-def rules_answer(context: dict[str, Any], question: str) -> str:
-    """Template answers drawn only from engine output – used when no AI model is configured."""
+def _lessons(context: dict[str, Any], q: str) -> list[str]:
+    """Learning-mode explanations built only from the deal's own engine output."""
+    m, a, ex = context["metrics"], context["assumptions"], context["exit"]
+    su, y1 = context["sources_and_uses"], context["annual_cash_flows"][0]
+    out: list[str] = []
+    if "irr" in q or "return" in q:
+        out.append(
+            "**Learn: IRR (internal rate of return).** IRR is the yearly return that accounts for *when* money moves. "
+            f"On this deal you invest {usd(su['common_equity'])} of equity at the start, receive "
+            f"{usd(y1['btcf'])} of cash flow in year 1 (more or less in later years), and get "
+            f"{usd(ex['net_proceeds_to_equity'])} back when you sell in year {ex['exit_year']}. The single yearly rate "
+            f"that makes all of those flows worth exactly what you put in is the levered IRR: **{pct(m['irr_levered'])}**. "
+            f"Read it together with the equity multiple ({mult(m['equity_multiple_levered'])}): the multiple says how much "
+            "money you get back; IRR says how fast.")
+    if any(k in q for k in ("dscr", "debt", "coverage", "loan", "leverage", "ltv")):
+        if m["dscr_year1"] is None:
+            out.append("**Learn: DSCR (debt service coverage ratio).** DSCR = NOI ÷ yearly loan payments. It shows how "
+                       "many times the property's income covers its loan. This scenario has no loan, so there is "
+                       "nothing to cover yet; add one on the Financing tab to see it.")
+        else:
+            out.append(
+                "**Learn: DSCR (debt service coverage ratio).** DSCR = NOI ÷ yearly loan payments. Here: "
+                f"{usd(m['noi_year1'])} ÷ {usd(y1['debt_service'])} = **{mult(m['dscr_year1'])}**, so year-1 income "
+                "covers the loan payment that many times. Lenders commonly look for roughly 1.20–1.35x; below 1.00x "
+                "the property cannot pay its loan from its own income.")
+    if "cap" in q:
+        out.append(
+            "**Learn: cap rate.** The going-in cap rate is year-1 NOI ÷ purchase price: "
+            f"{usd(m['noi_year1'])} ÷ {usd(a['purchase_price'])} = **{pct(m['going_in_cap_rate'])}**. It is the yield "
+            "you would earn in year 1 if you paid all cash. The exit cap rate sets the sale price: "
+            f"next year's NOI at sale ({usd(ex['forward_noi'])}) ÷ exit cap ({pct(ex['exit_cap_rate'])}) = "
+            f"{usd(ex['gross_sale_price'])}. A higher exit cap means a lower sale price, which is the cautious choice.")
+    if any(k in q for k in ("noi", "income", "expense", "opex", "revenue")):
+        out.append(
+            "**Learn: NOI (net operating income).** NOI is what the property earns from operations before loan "
+            f"payments: income you expect to collect ({usd(m['egi_year1'])}) minus operating expenses "
+            f"({usd(m['opex_year1'])}) = **{usd(m['noi_year1'])}**. Lenders size loans from it and buyers price the "
+            "property from it, so every expense you miss makes the deal look better than it is.")
+    if "risk" in q or "concern" in q or "weak" in q:
+        out.append(
+            "**Learn: the risk screen.** Axiom adds up penalty points for specific warning signs, such as thin debt "
+            "coverage, high leverage, fast rent growth or an exit cap below the entry cap. Under 20 is low, 20–44 "
+            "moderate, 45 and up high. It is a checklist to start the conversation, not a credit rating: click any "
+            "flag on the Overview tab to see why it was raised.")
+    return out
+
+
+def rules_answer(context: dict[str, Any], question: str, learning: bool = False) -> str:
+    """Template answers drawn only from engine output – used when no AI model is configured.
+
+    With ``learning`` on, each answered topic is followed by a plain-language lesson using the
+    deal's own figures.
+    """
     q = question.lower()
     m, a, ex = context["metrics"], context["assumptions"], context["exit"]
     trace = {t["metric"]: t for t in context["audit_trace"]}
@@ -104,4 +155,10 @@ def rules_answer(context: dict[str, Any], question: str) -> str:
             f"{pct(m['going_in_cap_rate'])}, levered IRR {pct(m['irr_levered'])}, equity multiple "
             f"{mult(m['equity_multiple_levered'])}, DSCR {mult(m['dscr_year1'])}.\n\nAsk me about returns, debt "
             "coverage, cap rates, the NOI build-up, risks, or sensitivity ranges.")
+    if learning:
+        lessons = _lessons(context, q)
+        parts.extend(lessons or [
+            "**Learning mode.** Ask me to *teach* you a concept on this deal, for example: \"Teach me how DSCR "
+            "works here\", \"Teach me what IRR means\" or \"Teach me how NOI is built\"."])
+        parts.append("_Go deeper: open the Glossary from the left menu for definitions and rules of thumb._")
     return "\n\n".join(parts) + demo + "\n\n_Rule-based analyst (AI model not configured)._"

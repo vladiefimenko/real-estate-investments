@@ -8,7 +8,7 @@ import uuid
 from collections.abc import Iterator
 
 from axiom_engine.scenarios import centered_range, sensitivity_table
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from fastapi.responses import Response, StreamingResponse
 from sqlalchemy import select
 
@@ -20,7 +20,7 @@ from ..schemas import ChatIn, ChatMessageOut
 from ..services import ai
 from ..services.analyst import build_context, rules_answer, verified_fields
 from ..services.report_excel import build_workbook
-from ..services.report_pdf import ic_memo, one_pager
+from ..services.report_pdf import ic_memo, junior_pack, one_pager
 from ..services.underwriting import calculate, get_scenario
 from .scenarios import scenario_comparison
 
@@ -87,6 +87,22 @@ def export_ic_memo(property_id: uuid.UUID, scenario_id: uuid.UUID | None = None,
                     headers={"Content-Disposition": f'attachment; filename="{_filename(prop, "IC-memo.pdf")}"'})
 
 
+@router.get("/properties/{property_id}/reports/junior-pack")
+def export_junior_pack(property_id: uuid.UUID, scenario_id: uuid.UUID | None = None,
+                       reviewed_by: str | None = Query(default=None, max_length=120),
+                       note: str | None = Query(default=None, max_length=1500),
+                       ctx: OrgContext = Depends(viewer)):
+    """Cover note, deal summary, annotated assumptions and a glossary appendix for a junior analyst."""
+    prop, sc, result = _load(ctx, property_id, scenario_id)
+    data = junior_pack(prop, sc.name, result, prepared_by=ctx.user.name or ctx.user.email,
+                       reviewed_by=(reviewed_by or "").strip() or None, note=(note or "").strip() or None,
+                       verified_count=len(verified_fields(ctx, prop)))
+    ctx.audit("report.junior_pack", "property", prop.id, property_id=prop.id, scenario=sc.name)
+    ctx.db.commit()
+    return Response(data, media_type="application/pdf",
+                    headers={"Content-Disposition": f'attachment; filename="{_filename(prop, "junior-pack.pdf")}"'})
+
+
 # ----------------------------------------------------------------- analyst
 @router.get("/properties/{property_id}/analyst/messages", response_model=list[ChatMessageOut])
 def chat_history(property_id: uuid.UUID, ctx: OrgContext = Depends(viewer)):
@@ -131,17 +147,17 @@ def chat(property_id: uuid.UUID, body: ChatIn, ctx: OrgContext = Depends(viewer)
         model = ai.model_name() if use_ai else "axiom-rules"
         try:
             if use_ai:
-                for text in ai.stream_analyst(context, history, body.message):
+                for text in ai.stream_analyst(context, history, body.message, learning=body.learning_mode):
                     chunks.append(text)
                     yield f"data: {json.dumps({'type': 'delta', 'text': text})}\n\n"
             else:
-                text = rules_answer(context, body.message)
+                text = rules_answer(context, body.message, learning=body.learning_mode)
                 for i in range(0, len(text), 40):
                     chunks.append(text[i:i + 40])
                     yield f"data: {json.dumps({'type': 'delta', 'text': text[i:i + 40]})}\n\n"
         except Exception as exc:  # noqa: BLE001 - surface a clean error to the client
             msg = f"\n\n_The analyst is unavailable right now ({type(exc).__name__}). Showing rule-based answer:_\n\n"
-            fallback = msg + rules_answer(context, body.message)
+            fallback = msg + rules_answer(context, body.message, learning=body.learning_mode)
             chunks.append(fallback)
             model = "axiom-rules"
             yield f"data: {json.dumps({'type': 'delta', 'text': fallback})}\n\n"

@@ -9,6 +9,7 @@ import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxi
 import { AXIS_PROPS, BAR_RADIUS, ChartTooltip, GRID_PROPS, SERIES } from "@/components/charts";
 import { EmptyState, ErrorBlock, LoadingBlock, Metric, PageHeader, StatusBadge } from "@/components/common";
 import { GettingStarted } from "@/components/getting-started";
+import { WeeklyProgress } from "@/components/weekly-progress";
 import { Button } from "@/components/ui/button";
 import { Badge, Card, CardContent, CardDescription, CardHeader, CardTitle, Select } from "@/components/ui/primitives";
 import { useOrgKey } from "@/hooks/queries";
@@ -108,6 +109,7 @@ export default function DashboardPage() {
         }
       />
       <GettingStarted />
+      <WeeklyProgress />
       {isLoading && <LoadingBlock rows={6} />}
       {error && <ErrorBlock error={error} />}
       {data && data.totals.deals === 0 && (
