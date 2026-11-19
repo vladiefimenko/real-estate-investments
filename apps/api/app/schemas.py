@@ -392,6 +392,7 @@ class ApplyExtractionsIn(BaseModel):
 class ChatIn(BaseModel):
     message: str = Field(min_length=1, max_length=4000)
     scenario_id: uuid.UUID | None = None
+    learning_mode: bool = False
 
 
 class ChatMessageOut(ORM):

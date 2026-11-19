@@ -58,3 +58,57 @@ def test_explain_is_tenant_scoped(client, owner, prop):
 
     base_id = owner.get(f"/api/properties/{prop['id']}/scenarios").json()[0]["id"]
     assert register(client).get(f"/api/scenarios/{base_id}/explain").status_code == 404
+
+
+def _ask(s, pid, message, learning):
+    import json
+
+    r = s.post(f"/api/properties/{pid}/analyst/chat", json={"message": message, "learning_mode": learning})
+    assert r.status_code == 200, r.text
+    events = [json.loads(line[6:]) for line in r.text.splitlines() if line.startswith("data: ")]
+    return "".join(e.get("text", "") for e in events if e["type"] == "delta")
+
+
+def test_learning_mode_teaches_with_the_deals_own_numbers(demo):
+    mf = next(p for p in demo.get("/api/properties").json() if p["property_type"] == "multifamily")
+    plain = _ask(demo, mf["id"], "Teach me how DSCR and the cap rate work here", learning=False)
+    taught = _ask(demo, mf["id"], "Teach me how DSCR and the cap rate work here", learning=True)
+    assert "Learn:" not in plain
+    assert "**Learn: DSCR" in taught and "**Learn: cap rate" in taught
+    a = demo.get(f"/api/properties/{mf['id']}/scenarios").json()[0]["assumptions"]
+    assert f"${a['purchase_price']:,.0f}" in taught  # the lesson uses this deal's price
+    # With nothing specific asked, learning mode suggests what to ask.
+    assert "Teach me how DSCR works here" in _ask(demo, mf["id"], "hello", learning=True)
+
+
+def test_junior_pack_pdf(demo):
+    import io
+
+    from pypdf import PdfReader
+
+    mf = next(p for p in demo.get("/api/properties").json() if p["property_type"] == "multifamily")
+    r = demo.get(f"/api/properties/{mf['id']}/reports/junior-pack",
+                 params={"reviewed_by": "Dana Senior", "note": "First pass <draft> & questions"})
+    assert r.status_code == 200 and r.headers["content-type"] == "application/pdf"
+    assert "junior-pack.pdf" in r.headers["content-disposition"]
+    pages = PdfReader(io.BytesIO(r.content)).pages
+    text = "\n".join(p.extract_text() for p in pages)
+    assert len(pages) >= 4
+    for expected in ("Cover note", "Prepared by", "Dana Senior", "First pass <draft> & questions",
+                     "Key assumptions, annotated", "What to check", "Glossary", "DSCR"):
+        assert expected in text, expected
+    audit = demo.get(f"/api/org/audit?property_id={mf['id']}").json()
+    assert any(e["action"] == "report.junior_pack" for e in audit)
+    assert demo.get("/api/org/onboarding").json()["steps"]["report_generated"] is True
+
+
+def test_junior_pack_without_reviewer_marks_pending(owner, prop):
+    r = owner.get(f"/api/properties/{prop['id']}/reports/junior-pack")
+    assert r.status_code == 200
+    import io
+
+    from pypdf import PdfReader
+
+    text = "\n".join(p.extract_text() for p in PdfReader(io.BytesIO(r.content)).pages)
+    assert "pending review" in text and "Unlevered" in text
+    assert owner.get(f"/api/properties/{prop['id']}/reports/junior-pack", params={"note": "x" * 1501}).status_code == 422

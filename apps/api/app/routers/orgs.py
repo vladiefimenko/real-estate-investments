@@ -225,8 +225,9 @@ def accept_invitation(body: AcceptInvitationIn, response: Response, db: Session 
 ONBOARDING_ACTIONS = {
     "document_uploaded": ("document.upload",),
     "field_verified": ("extraction.accept", "extraction.edit", "extraction.reject"),
-    "scenario_explored": ("scenario.create", "scenario.update", "extraction.apply", "risk.monte_carlo", "financing.create"),
-    "report_generated": ("report.excel", "report.one_pager", "report.ic_memo"),
+    "scenario_explored": ("scenario.create", "scenario.create_defaults", "scenario.update", "extraction.apply",
+                          "risk.monte_carlo", "financing.create"),
+    "report_generated": ("report.excel", "report.one_pager", "report.ic_memo", "report.junior_pack"),
 }
 
 
@@ -245,6 +246,35 @@ def onboarding(ctx: OrgContext = Depends(viewer)):
         Property.org_id == ctx.org.id, Property.is_demo.is_(False)).limit(1)) is not None}
     steps.update({k: any_action(v) for k, v in ONBOARDING_ACTIONS.items()})
     return {"steps": steps, "completed": sum(steps.values()), "total": len(steps)}
+
+
+PROGRESS_ACTIONS = {
+    "deals_created": ("property.create",),
+    "documents_uploaded": ("document.upload",),
+    "fields_verified": ("extraction.accept", "extraction.edit", "extraction.reject"),
+    "scenarios_explored": ONBOARDING_ACTIONS["scenario_explored"],
+    "reports_generated": ONBOARDING_ACTIONS["report_generated"],
+    "analyst_questions": ("analyst.question",),
+}
+
+
+@router.get("/org/progress")
+def my_progress(days: int = 7, ctx: OrgContext = Depends(viewer)):
+    """The signed-in user's own activity in this workspace over the last ``days`` days (demo seeding excluded)."""
+    days = max(1, min(days, 90))
+    since = utcnow() - timedelta(days=days)
+    wanted = {a for actions in PROGRESS_ACTIONS.values() for a in actions}
+    rows = ctx.db.execute(select(AuditLog.action, AuditLog.details).where(
+        AuditLog.org_id == ctx.org.id, AuditLog.user_id == ctx.user.id, AuditLog.created_at >= since,
+        AuditLog.action.in_(wanted))).all()
+    counts = dict.fromkeys(PROGRESS_ACTIONS, 0)
+    for action, details in rows:
+        if action == "property.create" and (details or {}).get("demo"):
+            continue
+        for key, actions in PROGRESS_ACTIONS.items():
+            if action in actions:
+                counts[key] += 1
+    return {"days": days, "counts": counts}
 
 
 @router.get("/org/audit")

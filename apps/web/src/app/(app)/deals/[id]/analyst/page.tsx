@@ -1,13 +1,14 @@
 "use client";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bot, Eraser, Send, Sparkles, User } from "lucide-react";
+import { Bot, Eraser, GraduationCap, Send, Sparkles, User } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { Callout } from "@/components/common";
 import { useDeal } from "@/components/deal-context";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/overlays";
 import { Badge, Card, Select, Textarea } from "@/components/ui/primitives";
 import { useOrgKey } from "@/hooks/queries";
 import { api, streamEvents } from "@/lib/api";
@@ -27,6 +28,14 @@ const SUGGESTIONS = [
   "Which sensitivity ranges should I test before IC?",
   "Draft an investment thesis paragraph for the IC memo.",
   "Compare going-in and exit cap rates – are we assuming compression?",
+];
+
+const TEACH_ME = [
+  "Teach me how DSCR works on this deal and why 1.25x matters.",
+  "Teach me what IRR means using this deal's cash flows.",
+  "Teach me how the cap rate sets the price.",
+  "Teach me how NOI is built from income and expenses.",
+  "Teach me how the risk screen scored this deal.",
 ];
 
 /** Minimal, safe markdown: **bold**, _italic_, bullet lists, paragraphs. No HTML injection. */
@@ -87,6 +96,7 @@ export default function AnalystPage() {
   const [input, setInput] = useState("");
   const [scenarioId, setScenarioId] = useState(base?.id ?? "");
   const [busy, setBusy] = useState(false);
+  const [learning, setLearning] = useState(false);
   const abort = useRef<AbortController | null>(null);
   const bottom = useRef<HTMLDivElement>(null);
 
@@ -95,7 +105,7 @@ export default function AnalystPage() {
   }, [messages.length, live]);
   useEffect(() => () => abort.current?.abort(), []);
 
-  async function send(text: string) {
+  async function send(text: string, teach = learning) {
     const q = text.trim();
     if (!q || busy) return;
     setInput("");
@@ -106,7 +116,7 @@ export default function AnalystPage() {
     try {
       await streamEvents(
         `/api/properties/${property.id}/analyst/chat`,
-        { message: q, scenario_id: scenarioId },
+        { message: q, scenario_id: scenarioId, learning_mode: teach },
         (e) => {
           if (e.type === "delta" && e.text) setMessages((m) => m.map((x) => (x.id === replyId ? { ...x, content: x.content + e.text } : x)));
           if (e.type === "done") setMessages((m) => m.map((x) => (x.id === replyId ? { ...x, model: String(e.model ?? "") } : x)));
@@ -219,6 +229,35 @@ export default function AnalystPage() {
         </form>
       </Card>
       <div className="space-y-4">
+        <Card className="space-y-3 p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <label htmlFor="learning-mode" className="flex items-center gap-1.5 text-sm font-medium">
+                <GraduationCap className="size-4" /> Learning mode
+              </label>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Answers also teach the concept, showing each formula with this deal&apos;s own numbers.
+              </p>
+            </div>
+            <Switch id="learning-mode" checked={learning} onCheckedChange={setLearning} />
+          </div>
+          <div className="space-y-1.5">
+            {TEACH_ME.map((s) => (
+              <button
+                key={s}
+                type="button"
+                disabled={busy}
+                onClick={() => {
+                  setLearning(true);
+                  send(s, true);
+                }}
+                className="w-full rounded-md border border-accent/30 bg-accent/5 px-3 py-2 text-left text-xs transition-colors hover:bg-accent/10 disabled:opacity-50"
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+        </Card>
         <Card className="p-4">
           <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Suggested questions</div>
           <div className="space-y-1.5">

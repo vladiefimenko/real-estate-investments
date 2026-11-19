@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Download, FileSpreadsheet, FileText, Presentation, Sparkles } from "lucide-react";
+import { Download, FileSpreadsheet, FileText, GraduationCap, Presentation, Sparkles } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -10,12 +10,12 @@ import { Callout } from "@/components/common";
 import { useDeal } from "@/components/deal-context";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/overlays";
-import { Badge, Card, CardContent, CardDescription, CardHeader, CardTitle, Label, Select } from "@/components/ui/primitives";
+import { Badge, Card, CardContent, CardDescription, CardHeader, CardTitle, Input, Label, Select, Textarea } from "@/components/ui/primitives";
 import { useFeature, useOrgKey } from "@/hooks/queries";
 import { api, download } from "@/lib/api";
 import { stripDemo } from "@/lib/format";
 
-type ReportKey = "excel" | "one-pager" | "ic-memo";
+type ReportKey = "excel" | "one-pager" | "ic-memo" | "junior-pack";
 
 export default function ReportsPage() {
   const { property, scenarios, base } = useDeal();
@@ -24,6 +24,8 @@ export default function ReportsPage() {
   const icEnabled = useFeature("ic_memo");
   const [scenarioId, setScenarioId] = useState(base?.id ?? scenarios[0]?.id ?? "");
   const [aiNarrative, setAiNarrative] = useState(false);
+  const [reviewer, setReviewer] = useState("");
+  const [coverNote, setCoverNote] = useState("");
   const [busy, setBusy] = useState<Partial<Record<ReportKey, boolean>>>({});
 
   const status = useQuery({
@@ -165,6 +167,47 @@ export default function ReportsPage() {
           }
         />
       </div>
+
+      <ReportCard
+        icon={GraduationCap}
+        title="Junior Analyst Report Pack"
+        format="PDF"
+        description="Four pages for a newer analyst to hand to a senior: a cover note with prepared-by and reviewed-by lines, the deal summary, every key assumption with a plain-English note on what to check, and a glossary of the terms used."
+        extra={
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="jp-reviewer">Reviewed by (optional)</Label>
+              <Input id="jp-reviewer" value={reviewer} onChange={(e) => setReviewer(e.target.value)} maxLength={120} placeholder="Your senior or team lead" />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="jp-note">Cover note (optional)</Label>
+              <Textarea
+                id="jp-note"
+                value={coverNote}
+                onChange={(e) => setCoverNote(e.target.value)}
+                maxLength={1500}
+                rows={2}
+                placeholder="e.g. First pass. Questions on the expense ratio and the exit cap."
+              />
+            </div>
+          </div>
+        }
+        action={
+          <Button
+            className="w-full sm:w-auto"
+            loading={!!busy["junior-pack"]}
+            disabled={!scenarioId}
+            onClick={() => {
+              const p = new URLSearchParams(qs);
+              if (reviewer.trim()) p.set("reviewed_by", reviewer.trim());
+              if (coverNote.trim()) p.set("note", coverNote.trim());
+              run("junior-pack", `${root}/junior-pack?${p.toString()}`, `${slug}-junior-pack.pdf`, "Junior report pack");
+            }}
+          >
+            <Download /> Download junior pack
+          </Button>
+        }
+      />
 
       {scenario && (
         <p className="text-xs text-muted-foreground">

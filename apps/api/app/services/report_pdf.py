@@ -404,3 +404,134 @@ def ic_memo(prop: Any, scenario_name: str, r: dict[str, Any], scenarios: list[di
     deco = _decorate(prop.is_demo, "Investment Committee Memorandum")
     doc.build(story, onFirstPage=deco, onLaterPages=deco)
     return buf.getvalue()
+
+
+# ---------------------------------------------------------------- junior analyst pack
+# Plain-language notes for the annotated-assumptions page. Kept short; the in-app
+# glossary (apps/web/src/lib/glossary.ts) holds the full definitions.
+ASSUMPTION_NOTES: list[tuple[str, str, str, str]] = [
+    # (assumption key, label, kind, what to check)
+    ("purchase_price", "Purchase price", "usd", "Compare price per unit or per SF with recent sales nearby."),
+    ("hold_period_years", "Hold period", "years", "Match it to the business plan and the loan term."),
+    ("vacancy_rate", "Vacancy", "pct", "Check the submarket's actual occupancy, not just the property's current rate."),
+    ("credit_loss_rate", "Credit loss", "pct", "Tenants who don't pay; look for bad debt in the T12."),
+    ("rent_growth", "Rent growth", "pct", "Above about 4% a year is aggressive in most markets; the risk screen flags it."),
+    ("opex_growth", "Expense growth", "pct", "Taxes and insurance often rise faster than inflation."),
+    ("management_fee_pct", "Management fee", "pct", "Usually charged as a share of collected income."),
+    ("exit_cap_rate", "Exit cap rate", "pct", "Cautious models set it at or above the going-in cap rate."),
+    ("selling_costs_pct", "Selling costs", "pct", "Broker fees and transfer costs at sale."),
+    ("discount_rate", "Discount rate", "pct", "Your required return; used for NPV."),
+]
+
+GLOSSARY_APPENDIX: list[tuple[str, str]] = [
+    ("NOI (net operating income)", "Income collected minus operating expenses, before loan payments."),
+    ("Going-in cap rate", "Year-1 NOI ÷ purchase price: the first-year yield if you paid all cash."),
+    ("Exit cap rate", "Cap rate assumed at sale. Sale price = next year's NOI ÷ exit cap."),
+    ("IRR", "The yearly return that accounts for when money is invested and returned. Levered IRR uses the "
+            "investor's cash flows after loan payments."),
+    ("Equity multiple", "Total cash returned to investors ÷ cash invested. Ignores timing."),
+    ("Cash-on-cash", "One year's cash flow to equity ÷ equity invested."),
+    ("DSCR", "NOI ÷ yearly loan payments. Lenders commonly want about 1.20–1.35x."),
+    ("LTV / LTC", "Loan as a share of value (LTV) or of total project cost (LTC)."),
+    ("NPV", "Today's value of future cash flows at your required return, minus what you invest."),
+    ("Vacancy & credit loss", "Rent lost to empty units and to tenants who don't pay."),
+    ("Risk score", "Axiom's 0–100 screening score: penalty points for warning signs. Under 20 low, 45+ high."),
+    ("Verification", "Values read from documents only enter the model after a person accepts or edits them."),
+]
+
+
+def _fmt(kind: str, v: Any) -> str:
+    if v is None:
+        return "n/a"
+    if kind == "pct":
+        return pct(v)
+    if kind == "usd":
+        return usd(v)
+    if kind == "years":
+        return f"{v} yrs"
+    return str(v)
+
+
+def _esc(s: str) -> str:
+    return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def junior_pack(prop: Any, scenario_name: str, r: dict[str, Any], prepared_by: str, reviewed_by: str | None,
+                note: str | None, verified_count: int) -> bytes:
+    """Cover note, one-page summary, annotated assumptions and a glossary appendix, for a junior analyst."""
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=LETTER, leftMargin=0.6 * inch, rightMargin=0.6 * inch,
+                            topMargin=0.7 * inch, bottomMargin=0.6 * inch,
+                            title=f"{prop.name} – Junior Analyst Report Pack", author=prepared_by)
+    a, m = r["assumptions"], r["metrics"]
+    now = datetime.now(timezone.utc)
+    story: list[Any] = _header_block(prop, scenario_name)
+
+    # 1. Cover note
+    story.append(Paragraph("Cover note", S["h2"]))
+    sign = _table([["Prepared by", _esc(prepared_by)],
+                   ["Reviewed by", _esc(reviewed_by) if reviewed_by else "________________________  (pending review)"],
+                   ["Date", f"{now:%B %d, %Y}"], ["Scenario", _esc(scenario_name)]],
+                  [1.4 * inch, 5.9 * inch], header=False)
+    sign.setStyle(TableStyle([("ALIGN", (0, 0), (-1, -1), "LEFT"), ("FONT", (0, 0), (0, -1), "Helvetica-Bold", 8)]))
+    story.append(sign)
+    story.append(Spacer(1, 6))
+    if note:
+        story.append(Paragraph(_esc(note).replace("\n", "<br/>"), S["body"]))
+        story.append(Spacer(1, 6))
+    story.append(Paragraph("How to read this pack", S["h2"]))
+    for line in (
+        "<b>Page 2</b> summarises the deal: price, returns, leverage, sources &amp; uses and the risk screen.",
+        "<b>Page 3</b> lists the key assumptions behind those numbers, with a note on what to check for each.",
+        "<b>Page 4</b> defines the terms used. Every figure comes from Axiom's deterministic engine.",
+        f"Verified document data: <b>{verified_count}</b> value(s) were accepted or edited by a person. "
+        + ("Assumptions without verified data are starting estimates."
+           if verified_count == 0 else "Other assumptions are the analyst's estimates or template defaults."),
+    ):
+        story.append(Paragraph(f"• {line}", S["body"]))
+    story.append(PageBreak())
+
+    # 2. Deal summary
+    story.append(Paragraph("Deal summary", S["h2"]))
+    story.append(_metric_grid(_headline_metrics(m, a)))
+    story.append(Paragraph("Sources &amp; Uses", S["h2"]))
+    story.append(_sources_uses(r))
+    risk = r.get("risk", {})
+    story.append(Paragraph(f"Risk screen: score <b>{risk.get('score', 'n/a')}</b> ({risk.get('level', 'n/a')})",
+                           S["h2"]))
+    for f in risk.get("factors", []) or [{"message": "No screening flags triggered."}]:
+        story.append(Paragraph(f"• {_esc(f['message'])}", S["body"]))
+    story.append(PageBreak())
+
+    # 3. Annotated assumptions
+    story.append(Paragraph("Key assumptions, annotated", S["h2"]))
+    flagged = {w["field"]: w["message"] for w in r.get("warnings") or []}
+    rows = [["Assumption", "Value", "What to check"]]
+    for key, label, kind, check in ASSUMPTION_NOTES:
+        if key not in a:
+            continue
+        comment = check + (f" <font color='#B54708'><b>Flag:</b> {_esc(flagged[key])}</font>" if key in flagged else "")
+        rows.append([label, _fmt(kind, a.get(key)), Paragraph(comment, S["body"])])
+    loan = a.get("loan")
+    if loan:
+        rows.append(["Loan", f"{pct(loan.get('interest_rate'))} rate",
+                     Paragraph(f"LTV {pct(m['ltv'], 1)}, year-1 DSCR {mult(m['dscr_year1'])}. Confirm terms with a "
+                               "lender quote.", S["body"])])
+    else:
+        rows.append(["Loan", "None", Paragraph("Unlevered: returns assume an all-cash purchase.", S["body"])])
+    t = _table(rows, [1.5 * inch, 1.1 * inch, 4.7 * inch], align_right_from=1)
+    t.setStyle(TableStyle([("ALIGN", (2, 0), (2, -1), "LEFT"), ("VALIGN", (0, 0), (-1, -1), "TOP")]))
+    story.append(t)
+    story.append(PageBreak())
+
+    # 4. Glossary appendix
+    story.append(Paragraph("Glossary", S["h2"]))
+    g = _table([["Term", "Meaning"]] + [[term, Paragraph(_esc(text), S["body"])] for term, text in GLOSSARY_APPENDIX],
+               [1.9 * inch, 5.4 * inch])
+    g.setStyle(TableStyle([("ALIGN", (0, 0), (-1, -1), "LEFT"), ("VALIGN", (0, 0), (-1, -1), "TOP")]))
+    story.append(g)
+    story.append(Spacer(1, 8))
+    story.append(Paragraph(f"Generated {now:%Y-%m-%d %H:%M UTC}, engine v{r['engine_version']}.", S["small"]))
+    deco = _decorate(prop.is_demo, "Junior Analyst Report Pack")
+    doc.build(story, onFirstPage=deco, onLaterPages=deco)
+    return buf.getvalue()
