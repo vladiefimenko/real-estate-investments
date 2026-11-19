@@ -10,6 +10,7 @@ import { AXIS_PROPS, BAR_RADIUS, ChartTooltip, divergingColor, GRID_PROPS, SERIE
 import { Callout, LoadingBlock, Metric } from "@/components/common";
 import { useDeal } from "@/components/deal-context";
 import { SectionCard } from "@/components/deal-widgets";
+import { ScenarioInsights } from "@/components/scenario-insights";
 import { NumberField } from "@/components/fields";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/overlays";
@@ -168,6 +169,7 @@ export default function ScenariosPage() {
           </div>
         )}
       </SectionCard>
+      {rows.length > 1 && <ScenarioInsights rows={rows} />}
       <Sensitivity />
       {mcEnabled === false ? (
         <Callout title="Monte Carlo simulation is not enabled for this workspace">Upgrade the plan or enable the feature in Settings.</Callout>

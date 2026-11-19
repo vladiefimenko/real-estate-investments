@@ -9,7 +9,7 @@ import { toast } from "sonner";
 
 import { DemoBadge, EmptyState, ErrorBlock, LoadingBlock, PageHeader, RiskBadge, StatusBadge } from "@/components/common";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent } from "@/components/ui/overlays";
+import { NewDealWizard } from "@/components/new-deal-wizard";
 import { Card, Input, Label, Select, Table, TBody, TD, TH, THead, TR } from "@/components/ui/primitives";
 import { useOrgKey, useProperties, usePropertyTypes } from "@/hooks/queries";
 import { api } from "@/lib/api";
@@ -93,7 +93,7 @@ function DealsInner() {
         <EmptyState icon={Building2} title="No deals match" description="Adjust filters or create a new deal." />
       )}
       {data && data.length > 0 && (view === "table" ? <DealTable deals={data} onOpen={(id) => router.push(`/deals/${id}`)} /> : <Kanban deals={data} />)}
-      <NewDealDialog open={open} onOpenChange={setOpen} />
+      <NewDealWizard open={open} onOpenChange={setOpen} />
     </>
   );
 }
@@ -211,116 +211,6 @@ function Kanban({ deals }: { deals: Property[] }) {
         );
       })}
     </div>
-  );
-}
-
-function NewDealDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
-  const router = useRouter();
-  const qc = useQueryClient();
-  const org = useOrgKey();
-  const types = usePropertyTypes();
-  const [f, setF] = useState({
-    name: "",
-    property_type: "multifamily",
-    address: "",
-    city: "",
-    state: "",
-    purchase_price: "",
-    hold_period_years: "10",
-    units: "",
-    rentable_sf: "",
-    year_built: "",
-  });
-  const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setF({ ...f, [k]: e.target.value });
-  const create = useMutation({
-    mutationFn: () =>
-      api<Property>("/api/properties", {
-        body: {
-          name: f.name,
-          property_type: f.property_type,
-          address: f.address || null,
-          city: f.city || null,
-          state: f.state || null,
-          purchase_price: Number(f.purchase_price.replace(/[$,]/g, "")),
-          hold_period_years: Number(f.hold_period_years),
-          units: f.units ? Number(f.units) : null,
-          rentable_sf: f.rentable_sf ? Number(f.rentable_sf.replace(/,/g, "")) : null,
-          year_built: f.year_built ? Number(f.year_built) : null,
-        },
-      }),
-    onSuccess: (p) => {
-      qc.invalidateQueries({ queryKey: [org] });
-      toast.success("Deal created with template assumptions. Upload documents to replace them with verified data.");
-      onOpenChange(false);
-      router.push(`/deals/${p.id}/documents`);
-    },
-    onError: (e) => toast.error(e.message),
-  });
-  const meta = types.data?.find((t) => t.key === f.property_type);
-  const usesUnits = meta?.revenue_mode === "unit_mix";
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent title="New deal" description="Starts with clearly-labelled template assumptions for the property type." className="max-w-xl">
-        <form
-          className="grid grid-cols-2 gap-3"
-          onSubmit={(e) => {
-            e.preventDefault();
-            create.mutate();
-          }}
-        >
-          <div className="col-span-2 space-y-1.5">
-            <Label htmlFor="nd-name">Deal name</Label>
-            <Input id="nd-name" required value={f.name} onChange={set("name")} placeholder="e.g. Parkside Apartments" />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="nd-type">Property type</Label>
-            <Select id="nd-type" value={f.property_type} onChange={set("property_type")}>
-              {(types.data ?? []).map((t) => (
-                <option key={t.key} value={t.key}>
-                  {t.label}
-                </option>
-              ))}
-            </Select>
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="nd-price">Purchase / asking price ($)</Label>
-            <Input id="nd-price" required inputMode="numeric" value={f.purchase_price} onChange={set("purchase_price")} placeholder="25,000,000" />
-          </div>
-          <div className="col-span-2 space-y-1.5">
-            <Label htmlFor="nd-address">Address</Label>
-            <Input id="nd-address" value={f.address} onChange={set("address")} />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="nd-city">City</Label>
-            <Input id="nd-city" value={f.city} onChange={set("city")} />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="nd-state">State</Label>
-            <Input id="nd-state" value={f.state} onChange={set("state")} maxLength={2} placeholder="TX" />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="nd-size">{usesUnits ? "Units" : "Rentable SF"}</Label>
-            {usesUnits ? (
-              <Input id="nd-size" inputMode="numeric" value={f.units} onChange={set("units")} />
-            ) : (
-              <Input id="nd-size" inputMode="numeric" value={f.rentable_sf} onChange={set("rentable_sf")} />
-            )}
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="nd-hold">Hold period (years)</Label>
-            <Input id="nd-hold" type="number" min={1} max={30} value={f.hold_period_years} onChange={set("hold_period_years")} />
-          </div>
-          <div className="col-span-2 mt-2 flex justify-end gap-2">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Cancel
-            </Button>
-            <Button type="submit" loading={create.isPending}>
-              Create deal
-            </Button>
-          </div>
-        </form>
-      </DialogContent>
-    </Dialog>
   );
 }
 

@@ -74,13 +74,14 @@ def create_property(body: PropertyCreate, ctx: OrgContext = Depends(analyst)):
         Property.org_id == ctx.org.id, Property.deleted_at.is_(None))) or 0
     if plan["max_deals"] is not None and count >= plan["max_deals"]:
         raise HTTPException(402, f"The {plan['label']} plan allows {plan['max_deals']} active deals")
-    data = body.model_dump(exclude={"owner_id"})
+    data = body.model_dump(exclude={"owner_id", "starter"})
     prop = Property(org_id=ctx.org.id, created_by=ctx.user.id, updated_by=ctx.user.id,
                     owner_id=body.owner_id or ctx.user.id, **data)
     ctx.db.add(prop)
     ctx.db.flush()
     assumptions = default_assumptions(body.property_type, body.purchase_price, body.hold_period_years,
-                                      body.units, body.rentable_sf)
+                                      body.units, body.rentable_sf,
+                                      starter=body.starter.model_dump() if body.starter else None)
     base = Scenario(org_id=ctx.org.id, property_id=prop.id, name="Base Case", is_base=True,
                     description="Template assumptions – replace with verified document data.",
                     assumptions_json=assumptions, created_by=ctx.user.id)

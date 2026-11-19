@@ -164,9 +164,20 @@ class PropertyBase(BaseModel):
         return v
 
 
+class StarterAssumptions(BaseModel):
+    """Optional starting values from the New Deal wizard; anything omitted uses the property-type template."""
+
+    model_config = ConfigDict(extra="forbid")
+    noi_year1: float | None = Field(default=None, gt=0)
+    vacancy_rate: float | None = Field(default=None, ge=0, le=0.5)
+    rent_growth: float | None = Field(default=None, ge=-0.1, le=0.15)
+    exit_cap_rate: float | None = Field(default=None, gt=0.01, le=0.2)
+
+
 class PropertyCreate(PropertyBase):
     purchase_price: float = Field(gt=0)
     owner_id: uuid.UUID | None = None
+    starter: StarterAssumptions | None = None
 
 
 class PropertyUpdate(BaseModel):
