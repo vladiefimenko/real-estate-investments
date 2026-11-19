@@ -8,6 +8,7 @@ import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxi
 
 import { AXIS_PROPS, BAR_RADIUS, ChartTooltip, GRID_PROPS, SERIES } from "@/components/charts";
 import { EmptyState, ErrorBlock, LoadingBlock, Metric, PageHeader, StatusBadge } from "@/components/common";
+import { GettingStarted } from "@/components/getting-started";
 import { Button } from "@/components/ui/button";
 import { Badge, Card, CardContent, CardDescription, CardHeader, CardTitle, Select } from "@/components/ui/primitives";
 import { useOrgKey } from "@/hooks/queries";
@@ -106,6 +107,7 @@ export default function DashboardPage() {
           </>
         }
       />
+      <GettingStarted />
       {isLoading && <LoadingBlock rows={6} />}
       {error && <ErrorBlock error={error} />}
       {data && data.totals.deals === 0 && (
@@ -132,14 +134,15 @@ export default function DashboardPage() {
           )}
           <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
             <Metric label="Active deals" value={data.totals.active_deals} sub={`${data.totals.deals} total`} />
-            <Metric label="Pipeline volume" value={usdShort(data.totals.pipeline_volume)} sub="Sourcing → IC" />
-            <Metric label="AUM (closed)" value={usdShort(data.totals.aum)} hint="Sum of purchase prices of closed deals." />
+            <Metric label="Pipeline volume" term="pipeline" hint="Purchase prices of deals from Sourcing through Investment Committee." value={usdShort(data.totals.pipeline_volume)} sub="Sourcing → IC" />
+            <Metric label="AUM (closed)" term="aum" value={usdShort(data.totals.aum)} />
             <Metric
               label="Wtd. avg cap rate"
+              term="cap-rate"
               value={pct(data.totals.weighted_avg_cap_rate)}
-              hint="Going-in cap rates weighted by purchase price (excludes passed deals)."
+              hint="On this dashboard: going-in cap rates weighted by purchase price, excluding passed deals."
             />
-            <Metric label="Median levered IRR" value={pct(data.totals.irr_median, 1)} hint="Base scenarios, latest calculation." />
+            <Metric label="Median levered IRR" term="irr" value={pct(data.totals.irr_median, 1)} hint="On this dashboard: base scenarios, latest calculation." />
             <Metric
               label="IRR range"
               value={

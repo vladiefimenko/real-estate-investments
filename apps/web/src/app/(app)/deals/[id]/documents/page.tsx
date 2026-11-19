@@ -109,9 +109,13 @@ export default function DocumentsPage() {
 
   return (
     <div className="space-y-5">
-      <Callout title="AI proposes, you verify">
+      <Callout title={pending > 0 ? `${pending} extracted value${pending === 1 ? "" : "s"} awaiting your review` : "AI proposes, you verify"}>
+        {pending > 0 && "Only verified data enters the model: open Review next to a document to accept, edit or reject each value. "}
         Extracted values never enter the model until a person accepts or edits them. Every value links back to the page and excerpt (or
-        spreadsheet cell) it came from.
+        spreadsheet cell) it came from.{" "}
+        <Link href="/glossary#verification" className="underline underline-offset-2">
+          Why verification matters
+        </Link>
       </Callout>
       <div className="grid gap-4 lg:grid-cols-3">
         {canEdit && (

@@ -2,11 +2,13 @@
 
 import { AlertTriangle, Info } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import Link from "next/link";
 import * as React from "react";
 
 import { Badge, Card, Skeleton } from "@/components/ui/primitives";
 import { Tooltip } from "@/components/ui/tooltip";
 import { STATUS_LABELS } from "@/lib/format";
+import { GLOSSARY_BY_ID } from "@/lib/glossary";
 import { cn } from "@/lib/utils";
 
 export function PageHeader({
@@ -32,11 +34,43 @@ export function PageHeader({
   );
 }
 
+/**
+ * Info icon that explains a glossary term on hover and opens its glossary entry on click.
+ * `note` adds a line specific to where the metric is shown (e.g. "Base scenarios only").
+ */
+export function TermInfo({ term, label, note }: { term: string; label?: string; note?: string }) {
+  const entry = GLOSSARY_BY_ID[term];
+  if (!entry) return null;
+  return (
+    <Tooltip
+      content={
+        <div className="space-y-1 py-0.5 normal-case tracking-normal">
+          <div className="font-semibold">{entry.term}</div>
+          <p>{entry.definition}</p>
+          {entry.formula && <p className="font-mono text-[11px] opacity-90">{entry.formula}</p>}
+          {entry.typical && <p className="opacity-90">Rule of thumb: {entry.typical}</p>}
+          {note && <p className="opacity-90">{note}</p>}
+          <p className="opacity-70">Click to open the glossary.</p>
+        </div>
+      }
+    >
+      <Link
+        href={`/glossary#${entry.id}`}
+        aria-label={`What is ${label ?? entry.term}?`}
+        className="inline-flex text-muted-foreground/70 hover:text-foreground"
+      >
+        <Info className="size-3" />
+      </Link>
+    </Tooltip>
+  );
+}
+
 export function Metric({
   label,
   value,
   sub,
   hint,
+  term,
   tone,
   className,
 }: {
@@ -44,6 +78,8 @@ export function Metric({
   value: React.ReactNode;
   sub?: React.ReactNode;
   hint?: string;
+  /** Glossary id; shows the term's definition and links to the glossary. */
+  term?: string;
   tone?: "good" | "bad" | "warn";
   className?: string;
 }) {
@@ -51,12 +87,16 @@ export function Metric({
     <Card className={cn("px-4 py-3.5", className)}>
       <div className="flex items-center gap-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
         {label}
-        {hint && (
-          <Tooltip content={hint}>
-            <button type="button" aria-label={`About ${label}`} className="text-muted-foreground/70">
-              <Info className="size-3" />
-            </button>
-          </Tooltip>
+        {term ? (
+          <TermInfo term={term} label={label} note={hint} />
+        ) : (
+          hint && (
+            <Tooltip content={hint}>
+              <button type="button" aria-label={`About ${label}`} className="text-muted-foreground/70">
+                <Info className="size-3" />
+              </button>
+            </Tooltip>
+          )
         )}
       </div>
       <div
