@@ -140,8 +140,14 @@ def default_assumptions(
     hold_period_years: int = 10,
     units: int | None = None,
     rentable_sf: float | None = None,
+    starter: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Starter assumption set for a new deal (clearly a template, to be overwritten by verified data)."""
+    """Starter assumption set for a new deal (clearly a template, to be overwritten by verified data).
+
+    ``starter`` may set ``noi_year1`` (revenue and expenses are sized so year-1 NOI is
+    approximately that figure) and override ``vacancy_rate``, ``rent_growth`` and ``exit_cap_rate``.
+    """
+    starter = {k: v for k, v in (starter or {}).items() if v is not None}
     meta = PROPERTY_TYPES[property_type]
     d = copy.deepcopy(meta["defaults"])
     capex_per_unit = d.pop("capex_reserve_per_unit", None)
@@ -171,8 +177,11 @@ def default_assumptions(
         "preferred_equity": None,
         **d,
     }
+    for key in ("vacancy_rate", "rent_growth", "exit_cap_rate"):
+        if key in starter:
+            out[key] = starter[key]
     # Starting revenue so a fresh model computes; replaced once documents are verified.
-    implied_noi = purchase_price * out["exit_cap_rate"]
+    implied_noi = starter.get("noi_year1") or purchase_price * out["exit_cap_rate"]
     if meta["revenue_mode"] == "unit_mix":
         n = units or 100
         rent = implied_noi / 0.55 / (1 - out["vacancy_rate"]) / 12 / n

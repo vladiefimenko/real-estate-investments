@@ -189,3 +189,16 @@ def scenario_comparison(property_id: uuid.UUID, ctx: OrgContext = Depends(viewer
             "metrics": headline(row),
         })
     return out
+
+
+@router.get("/scenarios/{scenario_id}/explain")
+def explain(scenario_id: uuid.UUID, ctx: OrgContext = Depends(viewer)):
+    """What differs from the base case, and how much each change alone moves levered IRR."""
+    from ..services.scenario_insights import explain_scenario
+
+    sc = _scenario(ctx, scenario_id)
+    prop = ctx.get_property(sc.property_id)
+    base = get_scenario(ctx, prop)
+    out = explain_scenario(base.assumptions_json, sc.assumptions_json)
+    return {"scenario_id": str(sc.id), "scenario_name": sc.name, "base_scenario_id": str(base.id),
+            "base_name": base.name, **out}
