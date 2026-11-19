@@ -1,0 +1,23 @@
+# Render Blueprint: the whole platform as one free web service.
+# The database is external (any PostgreSQL URL, e.g. a free Neon project): paste it
+# into AXIOM_DATABASE_URL when Render asks. See DEPLOY.md.
+services:
+  - type: web
+    name: axiom
+    runtime: docker
+    plan: free
+    region: oregon
+    dockerfilePath: ./Dockerfile.render
+    dockerContext: .
+    healthCheckPath: /api/health
+    envVars:
+      - key: AXIOM_DATABASE_URL
+        sync: false
+      - key: AXIOM_SECRET_KEY
+        generateValue: true
+      - key: AXIOM_ENVIRONMENT
+        value: production
+      - key: AXIOM_STORAGE_BACKEND
+        value: database
+      - key: AXIOM_COOKIE_SECURE
+        value: "true"

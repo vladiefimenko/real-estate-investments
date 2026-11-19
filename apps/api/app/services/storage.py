@@ -1,6 +1,6 @@
-"""Object storage: encrypted local filesystem (default) or S3-compatible.
+"""Object storage: encrypted local filesystem (default), encrypted database rows, or S3-compatible.
 
-Local files are encrypted with AES-256-GCM (random nonce per object). S3
+Local files and database rows are encrypted with AES-256-GCM (random nonce per object). S3
 objects use server-side encryption. Downloads always go through short-lived
 signed URLs – storage keys are never exposed directly.
 """
@@ -67,6 +67,62 @@ class LocalEncryptedStorage:
         return f"/api/files/{token}"
 
 
+class DatabaseEncryptedStorage:
+    """Encrypted objects in the ``stored_objects`` table, for hosts without a persistent disk."""
+
+    def __init__(self, key: bytes):
+        self.aead = AESGCM(key)
+
+    def _session(self):
+        from ..db import SessionLocal
+
+        return SessionLocal()
+
+    def put(self, key: str, data: bytes, content_type: str) -> None:
+        from ..models import StoredObject
+
+        nonce = secrets.token_bytes(12)
+        blob = _MAGIC + nonce + self.aead.encrypt(nonce, data, key.encode())
+        with self._session() as db:
+            obj = db.get(StoredObject, key)
+            if obj is None:
+                db.add(StoredObject(key=key, content_type=content_type, data=blob))
+            else:
+                obj.content_type, obj.data = content_type, blob
+            db.commit()
+
+    def get(self, key: str) -> bytes:
+        from ..models import StoredObject
+
+        with self._session() as db:
+            obj = db.get(StoredObject, key)
+            if obj is None:
+                raise FileNotFoundError(key)
+            raw = obj.data
+        if raw[:4] != _MAGIC:
+            raise ValueError("Corrupt or unencrypted object")
+        return self.aead.decrypt(raw[4:16], raw[16:], key.encode())
+
+    def exists(self, key: str) -> bool:
+        from ..models import StoredObject
+
+        with self._session() as db:
+            return db.get(StoredObject, key) is not None
+
+    def delete(self, key: str) -> None:
+        from ..models import StoredObject
+
+        with self._session() as db:
+            obj = db.get(StoredObject, key)
+            if obj is not None:
+                db.delete(obj)
+                db.commit()
+
+    def signed_url(self, key: str, filename: str, content_type: str, inline: bool = True) -> str:
+        token = sign_payload({"k": key, "fn": filename, "ct": content_type, "in": inline})
+        return f"/api/files/{token}"
+
+
 class S3Storage:  # pragma: no cover - exercised only against real S3/MinIO
     def __init__(self, bucket: str, endpoint_url: str | None, region: str | None):
         import boto3
@@ -112,6 +168,10 @@ def get_storage() -> Storage:
             if not s.s3_bucket:
                 raise RuntimeError("AXIOM_S3_BUCKET is required for the s3 storage backend")
             _storage = S3Storage(s.s3_bucket, s.s3_endpoint_url, s.s3_region)
+        elif s.storage_backend == "database":
+            if not s.is_postgres:
+                raise RuntimeError("The database storage backend requires PostgreSQL")
+            _storage = DatabaseEncryptedStorage(s.encryption_key_bytes())
         else:
             _storage = LocalEncryptedStorage(s.storage_path, s.encryption_key_bytes())
     return _storage

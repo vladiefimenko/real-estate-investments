@@ -5,6 +5,7 @@ import os
 
 from alembic import context
 from app import models  # noqa: F401 - registers tables on Base.metadata
+from app.config import normalize_database_url
 from app.db import Base
 from sqlalchemy import create_engine, pool
 
@@ -12,8 +13,8 @@ target_metadata = Base.metadata
 
 
 def _url() -> str:
-    return os.environ.get("AXIOM_MIGRATION_DATABASE_URL") or os.environ.get("AXIOM_DATABASE_URL",
-                                                                           "sqlite:///./axiom.db")
+    return normalize_database_url(os.environ.get("AXIOM_MIGRATION_DATABASE_URL")
+                                  or os.environ.get("AXIOM_DATABASE_URL", "sqlite:///./axiom.db"))
 
 
 def run_migrations_offline() -> None:
