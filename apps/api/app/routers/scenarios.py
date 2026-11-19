@@ -202,3 +202,13 @@ def explain(scenario_id: uuid.UUID, ctx: OrgContext = Depends(viewer)):
     out = explain_scenario(base.assumptions_json, sc.assumptions_json)
     return {"scenario_id": str(sc.id), "scenario_name": sc.name, "base_scenario_id": str(base.id),
             "base_name": base.name, **out}
+
+
+@router.get("/properties/{property_id}/tornado")
+def tornado_chart(property_id: uuid.UUID, scenario_id: uuid.UUID | None = None, ctx: OrgContext = Depends(viewer)):
+    """Rank the main assumptions by how much each moves IRR (one-at-a-time low/high engine runs)."""
+    from ..services.scenario_insights import tornado
+
+    prop = ctx.get_property(property_id)
+    sc = get_scenario(ctx, prop, scenario_id)
+    return {"scenario_id": str(sc.id), "scenario_name": sc.name, **tornado(sc.assumptions_json)}

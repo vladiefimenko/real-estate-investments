@@ -411,5 +411,33 @@ CREATE TABLE stored_objects (
 
 UPDATE alembic_version SET version_num='0003' WHERE alembic_version.version_num = '0002';
 
+-- Running upgrade 0003 -> 0004
+
+CREATE TABLE assumption_libraries (
+    id UUID NOT NULL, 
+    org_id UUID NOT NULL, 
+    name VARCHAR(120) NOT NULL, 
+    description TEXT, 
+    property_type VARCHAR(40), 
+    values_json JSONB NOT NULL, 
+    is_shared BOOLEAN NOT NULL, 
+    created_by UUID, 
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL, 
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL, 
+    PRIMARY KEY (id), 
+    FOREIGN KEY(created_by) REFERENCES users (id) ON DELETE SET NULL, 
+    FOREIGN KEY(org_id) REFERENCES organizations (id) ON DELETE CASCADE
+);
+
+CREATE INDEX ix_assumption_libraries_org_id ON assumption_libraries (org_id);
+
+ALTER TABLE assumption_libraries ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE assumption_libraries FORCE ROW LEVEL SECURITY;
+
+CREATE POLICY tenant_isolation ON assumption_libraries USING (org_id = NULLIF(current_setting('app.current_org_id', true), '')::uuid) WITH CHECK (org_id = NULLIF(current_setting('app.current_org_id', true), '')::uuid);
+
+UPDATE alembic_version SET version_num='0004' WHERE alembic_version.version_num = '0003';
+
 COMMIT;
 

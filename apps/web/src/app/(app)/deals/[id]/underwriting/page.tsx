@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { Callout, ErrorBlock, LoadingBlock } from "@/components/common";
+import { AssumptionLibraries } from "@/components/assumption-libraries";
 import { useDeal } from "@/components/deal-context";
 import { CashFlowChart, CashFlowTable, ExitSummary, HeadlineMetrics, RiskPanel, SectionCard, SourcesUses } from "@/components/deal-widgets";
 import { NumberField } from "@/components/fields";
@@ -155,6 +156,7 @@ function Editor({ scenario, onScenarioChange }: { scenario: Scenario; onScenario
                 <Button size="sm" variant="ghost" disabled={!dirty} onClick={() => setDraft(structuredClone(scenario.assumptions))}>
                   <RotateCcw /> Discard
                 </Button>
+                {canEdit && <AssumptionLibraries scenario={scenario} propertyType={property.property_type} dirty={dirty} />}
                 {canEdit && (
                   <Button size="sm" disabled={!dirty || hasErrors} loading={save.isPending} onClick={() => save.mutate()}>
                     <Save /> Save

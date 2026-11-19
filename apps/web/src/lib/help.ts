@@ -52,6 +52,7 @@ export const HELP: { pattern: RegExp; topic: HelpTopic }[] = [
         "Results update live as a preview; nothing is stored until you click Save.",
         "Yellow flags mark aggressive assumptions (for example rent growth above 8% or an exit cap below 3.5%).",
         "Open Model to see the year-by-year cash flow.",
+        "Libraries: save your standard assumptions once and apply them to any deal in one click.",
       ],
       terms: ["noi", "vacancy", "expense-ratio", "exit-cap", "dscr"],
     },
@@ -64,6 +65,7 @@ export const HELP: { pattern: RegExp; topic: HelpTopic }[] = [
       steps: [
         "Click 'Create default cases' to add Conservative and Optimistic versions of the base case.",
         "Read 'What changed, and why it matters' to see which assumptions move returns the most.",
+        "The tornado chart ranks which assumptions move returns the most.",
         "Use the sensitivity table to vary two assumptions at once.",
         "Run a Monte Carlo simulation to see a range of outcomes instead of one number.",
       ],
@@ -173,6 +175,7 @@ export const HELP: { pattern: RegExp; topic: HelpTopic }[] = [
       summary: "Your whole pipeline at a glance: volume by stage, exposure by type and state, alerts and recent activity.",
       steps: [
         "Follow the Getting Started checklist if you're new.",
+        "Press ⌘K (Ctrl+K on Windows) to jump to any deal or page; press ? for all keyboard shortcuts.",
         "Filter by property type or stage at the top.",
         "Alerts list deals whose risk screen or covenants need attention.",
       ],

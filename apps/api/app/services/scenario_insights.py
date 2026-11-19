@@ -90,3 +90,69 @@ def explain_scenario(base: dict[str, Any], other: dict[str, Any]) -> dict[str, A
         "interaction": None if total is None else total - explained,
         "drivers": drivers,
     }
+
+
+# ------------------------------------------------------------------ tornado
+# (path, label, kind, step, mode): mode "abs" adds ±step, "rel" multiplies by (1 ± step).
+TORNADO_DRIVERS: list[tuple[str, str, str, float, str]] = [
+    ("rent_growth", "Rent growth", "pct", 0.01, "abs"),
+    ("vacancy_rate", "Vacancy", "pct", 0.02, "abs"),
+    ("opex_growth", "Expense growth", "pct", 0.01, "abs"),
+    ("exit_cap_rate", "Exit cap rate", "pct", 0.005, "abs"),
+    ("purchase_price", "Purchase price", "usd", 0.05, "rel"),
+    ("loan.interest_rate", "Interest rate", "pct", 0.01, "abs"),
+    ("hold_period_years", "Hold period", "int", 2, "abs"),
+]
+
+
+def _metrics(assumptions: dict[str, Any]) -> dict[str, float | None] | None:
+    try:
+        m = run_underwriting(assumptions).metrics
+    except AssumptionError:
+        return None
+    return {"irr_levered": m.irr_levered, "irr_unlevered": m.irr_unlevered,
+            "equity_multiple": m.equity_multiple_levered}
+
+
+def tornado(base: dict[str, Any]) -> dict[str, Any]:
+    """One-at-a-time low/high runs for the main drivers, ranked by IRR swing.
+
+    Each bar is two full engine runs of ``base`` with only that driver moved down and
+    up by a fixed, documented step. Drivers that do not apply (e.g. interest rate on an
+    unlevered deal) or whose moved value is invalid are left out.
+    """
+    from axiom_engine.scenarios import get_path, set_path
+
+    base_m = _metrics(base) or {}
+    metric = "irr_levered" if base_m.get("irr_levered") is not None else "irr_unlevered"
+    rows = []
+    for path, label, kind, step, mode in TORNADO_DRIVERS:
+        try:
+            value = get_path(base, path)
+        except KeyError:
+            continue
+        if not isinstance(value, (int, float)) or isinstance(value, bool):
+            continue
+        if mode == "rel":
+            low, high = value * (1 - step), value * (1 + step)
+        else:
+            low, high = value - step, value + step
+        if kind == "int":
+            low, high = max(1, int(low)), int(high)
+        if path in ("vacancy_rate",):
+            low = max(0.0, low)
+        results = []
+        for v in (low, high):
+            trial = copy.deepcopy(base)
+            set_path(trial, path, v)
+            results.append(_metrics(trial))
+        if any(r is None or r.get(metric) is None for r in results):
+            continue
+        lo, hi = results
+        rows.append({
+            "path": path, "label": label, "kind": kind, "base_value": value, "low_value": low, "high_value": high,
+            "irr_low": lo[metric], "irr_high": hi[metric],
+            "em_low": lo["equity_multiple"], "em_high": hi["equity_multiple"],
+        })
+    rows.sort(key=lambda r: -abs(r["irr_high"] - r["irr_low"]))
+    return {"metric": metric, "base_irr": base_m.get(metric), "base_em": base_m.get("equity_multiple"), "drivers": rows}
