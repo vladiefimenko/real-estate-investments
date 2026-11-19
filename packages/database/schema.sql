@@ -462,5 +462,36 @@ CREATE INDEX ix_api_keys_org_id ON api_keys (org_id);
 
 UPDATE alembic_version SET version_num='0005' WHERE alembic_version.version_num = '0004';
 
+-- Running upgrade 0005 -> 0006
+
+CREATE TABLE webhooks (
+    id UUID NOT NULL, 
+    org_id UUID NOT NULL, 
+    url VARCHAR(500) NOT NULL, 
+    description VARCHAR(200), 
+    events JSONB NOT NULL, 
+    secret_encrypted TEXT NOT NULL, 
+    active BOOLEAN NOT NULL, 
+    created_by UUID, 
+    last_delivery_at TIMESTAMP WITH TIME ZONE, 
+    last_status VARCHAR(200), 
+    consecutive_failures INTEGER NOT NULL, 
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL, 
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL, 
+    PRIMARY KEY (id), 
+    FOREIGN KEY(created_by) REFERENCES users (id) ON DELETE SET NULL, 
+    FOREIGN KEY(org_id) REFERENCES organizations (id) ON DELETE CASCADE
+);
+
+CREATE INDEX ix_webhooks_org_id ON webhooks (org_id);
+
+ALTER TABLE webhooks ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE webhooks FORCE ROW LEVEL SECURITY;
+
+CREATE POLICY tenant_isolation ON webhooks USING (org_id = NULLIF(current_setting('app.current_org_id', true), '')::uuid) WITH CHECK (org_id = NULLIF(current_setting('app.current_org_id', true), '')::uuid);
+
+UPDATE alembic_version SET version_num='0006' WHERE alembic_version.version_num = '0005';
+
 COMMIT;
 

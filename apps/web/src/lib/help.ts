@@ -210,6 +210,7 @@ export const HELP: { pattern: RegExp; topic: HelpTopic }[] = [
         "Invite teammates and give them a role: Owner, Admin, Analyst or Viewer.",
         "Viewers can read everything but can't change deals.",
         "Usage shows active users and activity for licensing; API keys give other systems read-only access to deals.",
+        "Webhooks notify another system (a CRM, Slack workflow or data pipeline) when deals change stage or reports are generated.",
         "In Audit log, export the full history as CSV or JSON for compliance reviews.",
       ],
     },

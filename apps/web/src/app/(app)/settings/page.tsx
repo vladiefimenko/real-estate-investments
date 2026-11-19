@@ -1,13 +1,13 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { BarChart3, Building2, Check, Copy, CreditCard, Flag, History, KeyRound, Mail, Plus, Search, Trash2, Users } from "lucide-react";
+import { BarChart3, Building2, Check, Copy, CreditCard, Flag, History, KeyRound, Mail, Plus, Search, Trash2, Users, Webhook } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { Callout, EmptyState, ErrorBlock, LoadingBlock, PageHeader } from "@/components/common";
-import { ApiKeysTab, AuditExport, UsageTab } from "@/components/enterprise-settings";
+import { ApiKeysTab, AuditExport, UsageTab, WebhooksTab } from "@/components/enterprise-settings";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, Switch, Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/overlays";
 import {
@@ -90,7 +90,7 @@ interface Billing {
 const ROLE_LABELS: Record<Role, string> = { owner: "Owner", admin: "Admin", analyst: "Analyst", viewer: "Viewer" };
 const RANK: Record<Role, number> = { viewer: 0, analyst: 1, admin: 2, owner: 3 };
 const PLAN_ORDER = ["starter", "professional", "enterprise"];
-const TAB_KEYS = ["organization", "members", "billing", "features", "audit", "usage", "api-keys"] as const;
+const TAB_KEYS = ["organization", "members", "billing", "features", "audit", "usage", "api-keys", "webhooks"] as const;
 type TabKey = (typeof TAB_KEYS)[number];
 
 function shortDate(iso: string | null | undefined): string {
@@ -184,6 +184,9 @@ function SettingsInner() {
             <TabsTrigger value="api-keys">
               <KeyRound className="size-3.5" /> API keys
             </TabsTrigger>
+            <TabsTrigger value="webhooks">
+              <Webhook className="size-3.5" /> Webhooks
+            </TabsTrigger>
           </TabsList>
         </div>
         <TabsContent value="organization" className="rounded-md focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring">
@@ -206,6 +209,9 @@ function SettingsInner() {
         </TabsContent>
         <TabsContent value="api-keys" className="rounded-md focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring">
           <ApiKeysTab />
+        </TabsContent>
+        <TabsContent value="webhooks" className="rounded-md focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring">
+          <WebhooksTab />
         </TabsContent>
       </Tabs>
     </>
