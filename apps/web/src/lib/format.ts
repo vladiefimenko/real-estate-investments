@@ -46,6 +46,12 @@ export function dateTime(iso: string | null | undefined): string {
   return new Date(iso).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 }
 
+/** Calendar date including the year, e.g. "Nov 19, 2027" (for expiries and other far-off dates). */
+export function dateLong(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
 export function relativeTime(iso: string): string {
   const diff = (Date.now() - new Date(iso).getTime()) / 1000;
   if (diff < 60) return "just now";

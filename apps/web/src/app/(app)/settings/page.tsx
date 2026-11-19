@@ -1,12 +1,13 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Building2, Check, Copy, CreditCard, Flag, History, Mail, Plus, Search, Trash2, Users } from "lucide-react";
+import { BarChart3, Building2, Check, Copy, CreditCard, Flag, History, KeyRound, Mail, Plus, Search, Trash2, Users } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { Callout, EmptyState, ErrorBlock, LoadingBlock, PageHeader } from "@/components/common";
+import { ApiKeysTab, AuditExport, UsageTab } from "@/components/enterprise-settings";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, Switch, Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/overlays";
 import {
@@ -89,7 +90,7 @@ interface Billing {
 const ROLE_LABELS: Record<Role, string> = { owner: "Owner", admin: "Admin", analyst: "Analyst", viewer: "Viewer" };
 const RANK: Record<Role, number> = { viewer: 0, analyst: 1, admin: 2, owner: 3 };
 const PLAN_ORDER = ["starter", "professional", "enterprise"];
-const TAB_KEYS = ["organization", "members", "billing", "features", "audit"] as const;
+const TAB_KEYS = ["organization", "members", "billing", "features", "audit", "usage", "api-keys"] as const;
 type TabKey = (typeof TAB_KEYS)[number];
 
 function shortDate(iso: string | null | undefined): string {
@@ -177,6 +178,12 @@ function SettingsInner() {
             <TabsTrigger value="audit">
               <History className="size-3.5" /> Audit log
             </TabsTrigger>
+            <TabsTrigger value="usage">
+              <BarChart3 className="size-3.5" /> Usage
+            </TabsTrigger>
+            <TabsTrigger value="api-keys">
+              <KeyRound className="size-3.5" /> API keys
+            </TabsTrigger>
           </TabsList>
         </div>
         <TabsContent value="organization" className="rounded-md focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring">
@@ -193,6 +200,12 @@ function SettingsInner() {
         </TabsContent>
         <TabsContent value="audit" className="rounded-md focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring">
           <AuditTab />
+        </TabsContent>
+        <TabsContent value="usage" className="rounded-md focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring">
+          <UsageTab />
+        </TabsContent>
+        <TabsContent value="api-keys" className="rounded-md focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring">
+          <ApiKeysTab />
         </TabsContent>
       </Tabs>
     </>
@@ -1060,6 +1073,9 @@ function AuditTab() {
           />
         </div>
       </CardHeader>
+      <CardContent className="pb-0">
+        <AuditExport />
+      </CardContent>
       {audit.isLoading && <LoadingBlock rows={6} className="px-5 pb-5" />}
       {audit.error && (
         <CardContent>
