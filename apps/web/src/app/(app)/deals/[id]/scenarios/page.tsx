@@ -11,6 +11,7 @@ import { Callout, LoadingBlock, Metric } from "@/components/common";
 import { useDeal } from "@/components/deal-context";
 import { SectionCard } from "@/components/deal-widgets";
 import { ScenarioInsights } from "@/components/scenario-insights";
+import { TornadoChart } from "@/components/tornado-chart";
 import { NumberField } from "@/components/fields";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/overlays";
@@ -170,6 +171,7 @@ export default function ScenariosPage() {
         )}
       </SectionCard>
       {rows.length > 1 && <ScenarioInsights rows={rows} />}
+      <TornadoChart propertyId={property.id} scenarioId={rows.find((r) => r.is_base)?.scenario_id} resultId={rows.find((r) => r.is_base)?.metrics?.result_id} />
       <Sensitivity />
       {mcEnabled === false ? (
         <Callout title="Monte Carlo simulation is not enabled for this workspace">Upgrade the plan or enable the feature in Settings.</Callout>

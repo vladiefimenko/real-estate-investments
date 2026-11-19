@@ -112,3 +112,24 @@ def test_junior_pack_without_reviewer_marks_pending(owner, prop):
     text = "\n".join(p.extract_text() for p in PdfReader(io.BytesIO(r.content)).pages)
     assert "pending review" in text and "Unlevered" in text
     assert owner.get(f"/api/properties/{prop['id']}/reports/junior-pack", params={"note": "x" * 1501}).status_code == 422
+
+
+def test_tornado_ranks_drivers_by_irr_swing(demo):
+    mf = next(p for p in demo.get("/api/properties").json() if p["property_type"] == "multifamily")
+    body = demo.get(f"/api/properties/{mf['id']}/tornado").json()
+    assert body["metric"] == "irr_levered" and body["base_irr"] is not None
+    paths = [d["path"] for d in body["drivers"]]
+    assert {"rent_growth", "exit_cap_rate", "purchase_price", "loan.interest_rate"} <= set(paths)
+    swings = [abs(d["irr_high"] - d["irr_low"]) for d in body["drivers"]]
+    assert swings == sorted(swings, reverse=True)
+    by = {d["path"]: d for d in body["drivers"]}
+    # Directions: higher rent growth helps, a higher exit cap or price hurts.
+    assert by["rent_growth"]["irr_high"] > body["base_irr"] > by["rent_growth"]["irr_low"]
+    assert by["exit_cap_rate"]["irr_high"] < by["exit_cap_rate"]["irr_low"]
+    assert by["purchase_price"]["high_value"] > by["purchase_price"]["base_value"]
+
+
+def test_tornado_skips_loan_rate_when_unlevered(owner, prop):
+    body = owner.get(f"/api/properties/{prop['id']}/tornado").json()
+    assert "loan.interest_rate" not in {d["path"] for d in body["drivers"]}
+    assert len(body["drivers"]) >= 4

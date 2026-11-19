@@ -297,6 +297,20 @@ class AuditLog(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
+class AssumptionLibrary(Base, TimestampMixin):
+    """A named set of an underwriter's standard assumptions, applied to scenarios in one step."""
+
+    __tablename__ = "assumption_libraries"
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=new_id)
+    org_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("organizations.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(120), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text)
+    property_type: Mapped[str | None] = mapped_column(String(40))
+    values_json: Mapped[dict[str, Any]] = mapped_column(JSONType, nullable=False)
+    is_shared: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    created_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+
+
 class StoredObject(Base):
     """Encrypted file contents for the ``database`` storage backend.
 
@@ -313,6 +327,7 @@ class StoredObject(Base):
 
 # Tables protected by Postgres RLS (see alembic migration 0001).
 RLS_TABLES = (
+    "assumption_libraries",
     "properties",
     "documents",
     "document_pages",

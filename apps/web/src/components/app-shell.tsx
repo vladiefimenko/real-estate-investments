@@ -19,6 +19,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import { useEffect, useState, useSyncExternalStore } from "react";
 
+import { CommandPalette } from "@/components/command-palette";
 import { HelpPanel } from "@/components/help-panel";
 import { Logo } from "@/components/logo";
 import { Button } from "@/components/ui/button";
@@ -184,6 +185,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <Menu />
           </Button>
           <div className="flex-1" />
+          <CommandPalette />
           <Badge variant="outline" className="hidden sm:inline-flex">
             Engine v1.0 · deterministic
           </Badge>
