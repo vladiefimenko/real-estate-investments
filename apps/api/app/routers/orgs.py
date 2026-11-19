@@ -227,7 +227,8 @@ ONBOARDING_ACTIONS = {
     "field_verified": ("extraction.accept", "extraction.edit", "extraction.reject"),
     "scenario_explored": ("scenario.create", "scenario.create_defaults", "scenario.update", "extraction.apply",
                           "library.apply", "risk.monte_carlo", "financing.create"),
-    "report_generated": ("report.excel", "report.one_pager", "report.ic_memo", "report.junior_pack"),
+    "report_generated": ("report.excel", "report.one_pager", "report.ic_memo", "report.junior_pack",
+                         "report.presentation", "report.summary_pack"),
 }
 
 

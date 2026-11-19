@@ -88,13 +88,13 @@ def test_junior_pack_pdf(demo):
 
     mf = next(p for p in demo.get("/api/properties").json() if p["property_type"] == "multifamily")
     r = demo.get(f"/api/properties/{mf['id']}/reports/junior-pack",
-                 params={"reviewed_by": "Dana Senior", "note": "First pass <draft> & questions"})
+                 params={"reviewed_by": "Dana <Senior> & Co", "note": "First pass <draft> & questions"})
     assert r.status_code == 200 and r.headers["content-type"] == "application/pdf"
     assert "junior-pack.pdf" in r.headers["content-disposition"]
     pages = PdfReader(io.BytesIO(r.content)).pages
     text = "\n".join(p.extract_text() for p in pages)
     assert len(pages) >= 4
-    for expected in ("Cover note", "Prepared by", "Dana Senior", "First pass <draft> & questions",
+    for expected in ("Cover note", "Prepared by", "Dana <Senior> & Co", "First pass <draft> & questions",
                      "Key assumptions, annotated", "What to check", "Glossary", "DSCR"):
         assert expected in text, expected
     audit = demo.get(f"/api/org/audit?property_id={mf['id']}").json()

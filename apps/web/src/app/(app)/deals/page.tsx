@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Building2, Columns3, Plus, Rows3, Search } from "lucide-react";
+import { Building2, Columns3, FileDown, GitCompareArrows, Plus, Rows3, Search } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { NewDealWizard } from "@/components/new-deal-wizard";
 import { Card, Input, Label, Select, Table, TBody, TD, TH, THead, TR } from "@/components/ui/primitives";
 import { useOrgKey, useProperties, usePropertyTypes } from "@/hooks/queries";
-import { api } from "@/lib/api";
+import { api, download } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { mult, pct, STATUS_LABELS, STATUSES, stripDemo, TYPE_LABELS, usd, usdShort } from "@/lib/format";
 import type { Property } from "@/lib/types";
@@ -33,6 +33,7 @@ function DealsInner() {
     }
   });
   const [open, setOpen] = useState(params.get("new") === "1");
+  const [selected, setSelected] = useState<string[]>([]);
   const { data, isLoading, error } = useProperties({ q: q || undefined, property_type: type || undefined, status: status || undefined });
 
   const changeView = (v: "table" | "kanban") => {
@@ -92,18 +93,114 @@ function DealsInner() {
       {data && data.length === 0 && (
         <EmptyState icon={Building2} title="No deals match" description="Adjust filters or create a new deal." />
       )}
-      {data && data.length > 0 && (view === "table" ? <DealTable deals={data} onOpen={(id) => router.push(`/deals/${id}`)} /> : <Kanban deals={data} />)}
+      {data && data.length > 0 && view === "table" && (
+        <>
+          <BulkBar deals={data} selected={selected} onClear={() => setSelected([])} />
+          <DealTable deals={data} onOpen={(id) => router.push(`/deals/${id}`)} selected={selected} onSelect={setSelected} />
+        </>
+      )}
+      {data && data.length > 0 && view === "kanban" && <Kanban deals={data} />}
       <NewDealWizard open={open} onOpenChange={setOpen} />
     </>
   );
 }
 
-function DealTable({ deals, onOpen }: { deals: Property[]; onOpen: (id: string) => void }) {
+const MAX_COMPARE = 8;
+const MAX_PACK = 25;
+
+function BulkBar({ deals, selected, onClear }: { deals: Property[]; selected: string[]; onClear: () => void }) {
+  const router = useRouter();
+  const qc = useQueryClient();
+  const org = useOrgKey();
+  const { hasRole } = useAuth();
+  const [exporting, setExporting] = useState(false);
+  // Only act on deals still visible under the current filters.
+  const ids = selected.filter((id) => deals.some((d) => d.id === id));
+  const stage = useMutation({
+    mutationFn: (status: string) => api<{ updated: string[] }>("/api/properties/bulk-status", { body: { ids, status } }),
+    onSuccess: (r, status) => {
+      qc.invalidateQueries({ queryKey: [org] });
+      toast.success(`${r.updated.length} deal${r.updated.length === 1 ? "" : "s"} moved to ${STATUS_LABELS[status]}`);
+    },
+    onError: (e) => toast.error(e.message),
+  });
+  if (!ids.length) return null;
+  const exportPack = async () => {
+    setExporting(true);
+    try {
+      await download(`/api/reports/summary-pack?ids=${ids.join(",")}`, "deal-summary-pack.pdf");
+      toast.success("Summary pack downloaded");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not export the summary pack");
+    } finally {
+      setExporting(false);
+    }
+  };
+  return (
+    <div className="sticky top-16 z-20 mb-3 flex flex-wrap items-center gap-2 rounded-lg border bg-card px-3 py-2 shadow-sm" role="region" aria-label="Bulk actions">
+      <span className="text-sm font-medium">{ids.length} selected</span>
+      {hasRole("analyst") && (
+        <Select
+          value=""
+          onChange={(e) => e.target.value && stage.mutate(e.target.value)}
+          className="h-8 w-44"
+          aria-label="Move selected deals to stage"
+          disabled={stage.isPending}
+        >
+          <option value="">Move to stage…</option>
+          {STATUSES.map((s) => (
+            <option key={s} value={s}>
+              {STATUS_LABELS[s]}
+            </option>
+          ))}
+        </Select>
+      )}
+      <Button
+        size="sm"
+        variant="outline"
+        disabled={ids.length < 2 || ids.length > MAX_COMPARE}
+        title={ids.length > MAX_COMPARE ? `Compare up to ${MAX_COMPARE} deals` : undefined}
+        onClick={() => router.push(`/compare?ids=${ids.join(",")}`)}
+      >
+        <GitCompareArrows /> Compare
+      </Button>
+      <Button size="sm" variant="outline" loading={exporting} disabled={ids.length > MAX_PACK} onClick={exportPack}>
+        <FileDown /> Export summary pack
+      </Button>
+      <Button size="sm" variant="ghost" className="ml-auto" onClick={onClear}>
+        Clear selection
+      </Button>
+    </div>
+  );
+}
+
+function DealTable({
+  deals,
+  onOpen,
+  selected,
+  onSelect,
+}: {
+  deals: Property[];
+  onOpen: (id: string) => void;
+  selected: string[];
+  onSelect: (ids: string[]) => void;
+}) {
+  const visible = deals.map((d) => d.id);
+  const allOn = visible.every((id) => selected.includes(id));
+  const toggle = (id: string) => onSelect(selected.includes(id) ? selected.filter((x) => x !== id) : [...selected, id]);
   return (
     <Card>
       <Table>
         <THead>
           <TR className="hover:bg-transparent">
+            <TH className="w-8">
+              <input
+                type="checkbox"
+                aria-label="Select all deals"
+                checked={allOn}
+                onChange={() => onSelect(allOn ? selected.filter((id) => !visible.includes(id)) : [...new Set([...selected, ...visible])])}
+              />
+            </TH>
             <TH>Deal</TH>
             <TH>Type</TH>
             <TH>Status</TH>
@@ -119,7 +216,10 @@ function DealTable({ deals, onOpen }: { deals: Property[]; onOpen: (id: string) 
         </THead>
         <TBody>
           {deals.map((p) => (
-            <TR key={p.id} className="cursor-pointer" onClick={() => onOpen(p.id)}>
+            <TR key={p.id} className={cn("cursor-pointer", selected.includes(p.id) && "bg-accent/5")} onClick={() => onOpen(p.id)}>
+              <TD onClick={(e) => e.stopPropagation()}>
+                <input type="checkbox" aria-label={`Select ${stripDemo(p.name)}`} checked={selected.includes(p.id)} onChange={() => toggle(p.id)} />
+              </TD>
               <TD>
                 <Link href={`/deals/${p.id}`} className="font-medium hover:underline" onClick={(e) => e.stopPropagation()}>
                   {stripDemo(p.name)}

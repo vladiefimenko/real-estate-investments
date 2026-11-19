@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Download, FileSpreadsheet, FileText, GraduationCap, Presentation, Sparkles } from "lucide-react";
+import { Download, FileSpreadsheet, FileText, GraduationCap, MonitorPlay, Presentation, Sparkles } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -15,7 +15,7 @@ import { useFeature, useOrgKey } from "@/hooks/queries";
 import { api, download } from "@/lib/api";
 import { stripDemo } from "@/lib/format";
 
-type ReportKey = "excel" | "one-pager" | "ic-memo" | "junior-pack";
+type ReportKey = "excel" | "one-pager" | "ic-memo" | "junior-pack" | "presentation";
 
 export default function ReportsPage() {
   const { property, scenarios, base } = useDeal();
@@ -26,6 +26,7 @@ export default function ReportsPage() {
   const [aiNarrative, setAiNarrative] = useState(false);
   const [reviewer, setReviewer] = useState("");
   const [coverNote, setCoverNote] = useState("");
+  const [deck, setDeck] = useState({ title: "", preparedFor: "", firm: "", risk: true });
   const [busy, setBusy] = useState<Partial<Record<ReportKey, boolean>>>({});
 
   const status = useQuery({
@@ -167,6 +168,51 @@ export default function ReportsPage() {
           }
         />
       </div>
+
+      <ReportCard
+        icon={MonitorPlay}
+        title="Client presentation"
+        format="PDF · landscape"
+        description="A clean, landscape deck for clients, lenders and partners: cover page, investment highlights, cash flow chart and capital stack, and optional key considerations. Your firm name replaces the Axiom header."
+        extra={
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="pr-title">Title (optional)</Label>
+              <Input id="pr-title" value={deck.title} maxLength={120} onChange={(e) => setDeck({ ...deck, title: e.target.value })} placeholder={stripDemo(property.name)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="pr-for">Prepared for (optional)</Label>
+              <Input id="pr-for" value={deck.preparedFor} maxLength={120} onChange={(e) => setDeck({ ...deck, preparedFor: e.target.value })} placeholder="e.g. First Coast Bank" />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="pr-firm">Your firm name (optional)</Label>
+              <Input id="pr-firm" value={deck.firm} maxLength={80} onChange={(e) => setDeck({ ...deck, firm: e.target.value })} placeholder="Shown in the header" />
+            </div>
+            <div className="flex items-center gap-2 sm:col-span-3">
+              <Switch id="pr-risk" checked={deck.risk} onCheckedChange={(v) => setDeck({ ...deck, risk: v })} />
+              <Label htmlFor="pr-risk">Include a &ldquo;Key considerations&rdquo; page (risk flags and assumption notes)</Label>
+            </div>
+            {property.is_demo && <p className="text-xs text-warning sm:col-span-3">Demo deals are always watermarked.</p>}
+          </div>
+        }
+        action={
+          <Button
+            className="w-full sm:w-auto"
+            loading={!!busy.presentation}
+            disabled={!scenarioId}
+            onClick={() => {
+              const p = new URLSearchParams(qs);
+              if (deck.title.trim()) p.set("title", deck.title.trim());
+              if (deck.preparedFor.trim()) p.set("prepared_for", deck.preparedFor.trim());
+              if (deck.firm.trim()) p.set("firm_name", deck.firm.trim());
+              p.set("include_risk", String(deck.risk));
+              run("presentation", `${root}/presentation?${p.toString()}`, `${slug}-presentation.pdf`, "Client presentation");
+            }}
+          >
+            <Download /> Download presentation
+          </Button>
+        }
+      />
 
       <ReportCard
         icon={GraduationCap}
