@@ -149,6 +149,8 @@ def _noi_chart(annual: list[dict[str, Any]]) -> Drawing:
     ch = VerticalBarChart()
     ch.x, ch.y, ch.width, ch.height = 35, 18, 3.4 * inch - 45, 1.7 * inch - 30
     ch.data = [[r["noi"] / 1000 for r in annual], [r["btcf"] / 1000 for r in annual]]
+    # Always include zero so bar lengths are comparable (a truncated axis exaggerates differences).
+    ch.valueAxis.valueMin = min(0.0, *ch.data[0], *ch.data[1])
     ch.categoryAxis.categoryNames = [f"Y{r['year']}" for r in annual]
     ch.categoryAxis.labels.fontSize = 6
     ch.valueAxis.labels.fontSize = 6
@@ -469,9 +471,10 @@ def junior_pack(prop: Any, scenario_name: str, r: dict[str, Any], prepared_by: s
 
     # 1. Cover note
     story.append(Paragraph("Cover note", S["h2"]))
-    sign = _table([["Prepared by", _esc(prepared_by)],
-                   ["Reviewed by", _esc(reviewed_by) if reviewed_by else "________________________  (pending review)"],
-                   ["Date", f"{now:%B %d, %Y}"], ["Scenario", _esc(scenario_name)]],
+    # Plain table cells are drawn verbatim (no markup), so they are not escaped.
+    sign = _table([["Prepared by", prepared_by],
+                   ["Reviewed by", reviewed_by or "________________________  (pending review)"],
+                   ["Date", f"{now:%B %d, %Y}"], ["Scenario", scenario_name]],
                   [1.4 * inch, 5.9 * inch], header=False)
     sign.setStyle(TableStyle([("ALIGN", (0, 0), (-1, -1), "LEFT"), ("FONT", (0, 0), (0, -1), "Helvetica-Bold", 8)]))
     story.append(sign)
@@ -534,4 +537,164 @@ def junior_pack(prop: Any, scenario_name: str, r: dict[str, Any], prepared_by: s
     story.append(Paragraph(f"Generated {now:%Y-%m-%d %H:%M UTC}, engine v{r['engine_version']}.", S["small"]))
     deco = _decorate(prop.is_demo, "Junior Analyst Report Pack")
     doc.build(story, onFirstPage=deco, onLaterPages=deco)
+    return buf.getvalue()
+
+
+# ---------------------------------------------------------------- multi-deal summary pack
+def summary_pack(deals: list[tuple[Any, str, dict[str, Any]]]) -> bytes:
+    """One comparison page across the selected deals, then a one-page summary of each."""
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=LETTER, leftMargin=0.6 * inch, rightMargin=0.6 * inch,
+                            topMargin=0.7 * inch, bottomMargin=0.6 * inch, title="Deal summary pack", author="Axiom")
+    any_demo = any(p.is_demo for p, _, _ in deals)
+    story: list[Any] = [Paragraph("Deal summary pack", S["h1"]),
+                        Paragraph(f"{len(deals)} deals · base-case figures recalculated at export · "
+                                  f"{datetime.now(timezone.utc):%B %d, %Y}", S["small"]), Spacer(1, 8)]
+    if any_demo:
+        story.append(Paragraph("<font color='#B42318'><b>Includes fictional demo deals, marked [DEMO].</b></font>",
+                               S["small"]))
+    rows = [["Deal", "Type", "Stage", "Price", "Cap", "Lev. IRR", "Multiple", "DSCR", "Risk"]]
+    for p, _, r in deals:
+        m, a = r["metrics"], r["assumptions"]
+        risk = r.get("risk") or {}
+        rows.append([Paragraph(_esc(p.name), S["body"]), TYPE_LABELS.get(p.property_type, p.property_type),
+                     p.status.upper() if p.status == "ic" else p.status.title(), usd_short(a["purchase_price"]),
+                     pct(m["going_in_cap_rate"]), pct(m["irr_levered"]), mult(m["equity_multiple_levered"]),
+                     mult(m["dscr_year1"]), f"{risk.get('score', 'n/a')} {risk.get('level', '')}".strip()])
+    t = _table(rows, [1.75 * inch, 0.8 * inch, 0.8 * inch, 0.7 * inch, 0.55 * inch, 0.65 * inch, 0.65 * inch,
+                      0.55 * inch, 0.85 * inch], align_right_from=3)
+    t.setStyle(TableStyle([("ALIGN", (8, 0), (8, -1), "LEFT"), ("VALIGN", (0, 0), (-1, -1), "MIDDLE")]))
+    story.append(t)
+    for p, scenario_name, r in deals:
+        story.append(PageBreak())
+        story.extend(_header_block(p, scenario_name))
+        story.append(_metric_grid(_headline_metrics(r["metrics"], r["assumptions"])))
+        story.append(Paragraph("Sources &amp; Uses", S["h2"]))
+        story.append(_sources_uses(r))
+        risk = r.get("risk") or {}
+        story.append(Paragraph(f"Risk screen: score <b>{risk.get('score', 'n/a')}</b> ({risk.get('level', 'n/a')})",
+                               S["h2"]))
+        for f in risk.get("factors", []) or [{"message": "No screening flags triggered."}]:
+            story.append(Paragraph(f"• {_esc(f['message'])}", S["body"]))
+        story.append(Paragraph("Annual cash flow", S["h2"]))
+        story.append(_cash_flow_table(r))
+    deco = _decorate(any_demo, "Deal Summary Pack")
+    doc.build(story, onFirstPage=deco, onLaterPages=deco)
+    return buf.getvalue()
+
+
+# ---------------------------------------------------------------- client presentation
+def _presentation_frame(demo: bool, brand: str, title: str):
+    from reportlab.lib.pagesizes import landscape
+
+    def draw(canvas, doc):
+        w, h = landscape(LETTER)
+        canvas.saveState()
+        canvas.setFillColor(NAVY)
+        canvas.rect(0, h - 0.5 * inch, w, 0.5 * inch, fill=1, stroke=0)
+        canvas.setFillColor(GOLD)
+        canvas.rect(0, h - 0.54 * inch, w, 0.04 * inch, fill=1, stroke=0)
+        canvas.setFillColor(colors.white)
+        canvas.setFont("Helvetica-Bold", 12)
+        canvas.drawString(0.6 * inch, h - 0.33 * inch, brand)
+        canvas.setFont("Helvetica", 9)
+        canvas.drawRightString(w - 0.6 * inch, h - 0.33 * inch, title)
+        canvas.setFillColor(MUTED)
+        canvas.setFont("Helvetica", 6.5)
+        canvas.drawString(0.6 * inch, 0.35 * inch,
+                          "Figures calculated by the Axiom deterministic engine from the stated assumptions. "
+                          "For discussion only; not an offer or investment advice.")
+        canvas.drawRightString(w - 0.6 * inch, 0.35 * inch, f"{doc.page}")
+        if demo:
+            canvas.setFillColor(colors.Color(0.85, 0.15, 0.15, alpha=0.12))
+            canvas.setFont("Helvetica-Bold", 54)
+            canvas.translate(w / 2, h / 2)
+            canvas.rotate(25)
+            canvas.drawCentredString(0, 20, "FOR DEMONSTRATION")
+            canvas.drawCentredString(0, -46, "PURPOSES ONLY")
+        canvas.restoreState()
+
+    return draw
+
+
+def presentation(prop: Any, scenario_name: str, r: dict[str, Any], *, title: str | None, prepared_for: str | None,
+                 presenter: str, firm_name: str | None, include_risk: bool) -> bytes:
+    """Landscape client deck: cover, investment highlights, cash flow, capital stack and exit."""
+    from reportlab.lib.pagesizes import landscape
+
+    buf = io.BytesIO()
+    page = landscape(LETTER)
+    doc = SimpleDocTemplate(buf, pagesize=page, leftMargin=0.7 * inch, rightMargin=0.7 * inch,
+                            topMargin=0.85 * inch, bottomMargin=0.6 * inch,
+                            title=title or f"{prop.name} – Investment Overview", author=firm_name or presenter)
+    a, m, ex, su = r["assumptions"], r["metrics"], r["exit"], r["sources_and_uses"]
+    big = ParagraphStyle("big", parent=S["h1"], fontSize=30, leading=36, spaceAfter=10)
+    lead = ParagraphStyle("lead", parent=S["body"], fontSize=13, leading=18, textColor=MUTED)
+    kpi_v = ParagraphStyle("kv", parent=S["metric_value"], fontSize=22, leading=26)
+    kpi_l = ParagraphStyle("kl", parent=S["metric_label"], fontSize=9, leading=11)
+    loc = ", ".join(x for x in (prop.address, prop.city, prop.state) if x) or "Location on request"
+    story: list[Any] = [Spacer(1, 1.1 * inch), Paragraph(_esc(title or prop.name), big),
+                        Paragraph(f"{TYPE_LABELS.get(prop.property_type, prop.property_type)} · {_esc(loc)}", lead),
+                        Spacer(1, 0.5 * inch)]
+    meta = [["Prepared for", prepared_for or "—"],  # plain cells: drawn verbatim, not escaped
+            ["Presented by", presenter + (f", {firm_name}" if firm_name else "")],
+            ["Date", f"{datetime.now(timezone.utc):%B %d, %Y}"]]
+    mt = Table(meta, colWidths=[1.6 * inch, 6 * inch])
+    mt.setStyle(TableStyle([("FONT", (0, 0), (0, -1), "Helvetica-Bold", 10), ("FONT", (1, 0), (1, -1), "Helvetica", 10),
+                            ("TEXTCOLOR", (0, 0), (-1, -1), INK), ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+                            ("LEFTPADDING", (0, 0), (-1, -1), 0)]))
+    story.append(mt)
+    if prop.is_demo:
+        story.append(Spacer(1, 12))
+        story.append(Paragraph("<font color='#B42318'><b>Sample deal: all figures are fictional.</b></font>", lead))
+    story.append(PageBreak())
+
+    # Investment highlights
+    story.append(Paragraph("Investment highlights", S["h1"]))
+    kpis = [("Purchase price", usd_short(a["purchase_price"])), ("Going-in cap rate", pct(m["going_in_cap_rate"])),
+            ("Levered IRR", pct(m["irr_levered"])), ("Equity multiple", mult(m["equity_multiple_levered"])),
+            ("Year-1 NOI", usd_short(m["noi_year1"])), ("Cash-on-cash (Y1)", pct(m["cash_on_cash_year1"])),
+            ("DSCR (Y1)", mult(m["dscr_year1"])), ("Hold period", f"{a['hold_period_years']} years")]
+    cells = [[Paragraph(v, kpi_v), Paragraph(lbl, kpi_l)] for lbl, v in kpis]
+    grid = Table([[Table([[c[0]], [c[1]]]) for c in cells[i:i + 4]] for i in range(0, 8, 4)],
+                 colWidths=[2.35 * inch] * 4, rowHeights=[1.05 * inch] * 2)
+    grid.setStyle(TableStyle([("BOX", (0, 0), (-1, -1), 0.5, LINE), ("INNERGRID", (0, 0), (-1, -1), 0.5, LINE),
+                              ("VALIGN", (0, 0), (-1, -1), "MIDDLE"), ("LEFTPADDING", (0, 0), (-1, -1), 12)]))
+    story.append(Spacer(1, 6))
+    story.append(grid)
+    story.append(Spacer(1, 14))
+    story.append(Paragraph(
+        f"Scenario: <b>{_esc(scenario_name)}</b>. Exit in year {ex['exit_year']} at a {pct(ex['exit_cap_rate'])} cap "
+        f"rate on forward NOI of {usd(ex['forward_noi'])}, for a gross sale price of {usd(ex['gross_sale_price'])}.",
+        lead))
+    story.append(PageBreak())
+
+    # Cash flow + capital stack
+    story.append(Paragraph("Cash flow and capital", S["h1"]))
+    chart = _noi_chart(r["annual"])
+    chart.scale(1.75, 1.75)
+    chart.width, chart.height = chart.width * 1.75, chart.height * 1.75
+    stack = [["Capital stack", ""], ["Senior loan", usd(su["senior_loan"])],
+             ["Preferred equity", usd(su["preferred_equity"])], ["Common equity", usd(su["common_equity"])],
+             ["Total", usd(su["total_sources"])]]
+    st = _table(stack, [1.6 * inch, 1.4 * inch])
+    st.setStyle(TableStyle([("FONT", (0, -1), (-1, -1), "Helvetica-Bold", 8)]))
+    side = Table([[Paragraph("NOI (navy) and cash flow to equity (gold), $K", S["small"])], [chart]])
+    row = Table([[side, st]], colWidths=[6.4 * inch, 3.2 * inch])
+    row.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"), ("LEFTPADDING", (0, 0), (-1, -1), 0)]))
+    story.append(row)
+    story.append(Spacer(1, 10))
+    story.append(_cash_flow_table(r))
+
+    if include_risk:
+        story.append(PageBreak())
+        story.append(Paragraph("Key considerations", S["h1"]))
+        risk = r.get("risk") or {}
+        for f in risk.get("factors", []) or [{"message": "No screening flags were triggered by the base case."}]:
+            story.append(Paragraph(f"• {_esc(f['message'])}", lead))
+        for w in r.get("warnings") or []:
+            story.append(Paragraph(f"• Assumption to note: {_esc(w['message'])}", lead))
+
+    frame = _presentation_frame(prop.is_demo, (firm_name or "AXIOM").upper()[:40], title or prop.name)
+    doc.build(story, onFirstPage=frame, onLaterPages=frame)
     return buf.getvalue()

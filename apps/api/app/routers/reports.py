@@ -8,7 +8,7 @@ import uuid
 from collections.abc import Iterator
 
 from axiom_engine.scenarios import centered_range, sensitivity_table
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response, StreamingResponse
 from sqlalchemy import select
 
@@ -20,7 +20,7 @@ from ..schemas import ChatIn, ChatMessageOut
 from ..services import ai
 from ..services.analyst import build_context, rules_answer, verified_fields
 from ..services.report_excel import build_workbook
-from ..services.report_pdf import ic_memo, junior_pack, one_pager
+from ..services.report_pdf import ic_memo, junior_pack, one_pager, presentation, summary_pack
 from ..services.underwriting import calculate, get_scenario
 from .scenarios import scenario_comparison
 
@@ -101,6 +101,46 @@ def export_junior_pack(property_id: uuid.UUID, scenario_id: uuid.UUID | None = N
     ctx.db.commit()
     return Response(data, media_type="application/pdf",
                     headers={"Content-Disposition": f'attachment; filename="{_filename(prop, "junior-pack.pdf")}"'})
+
+
+@router.get("/properties/{property_id}/reports/presentation")
+def export_presentation(property_id: uuid.UUID, scenario_id: uuid.UUID | None = None,
+                        title: str | None = Query(default=None, max_length=120),
+                        prepared_for: str | None = Query(default=None, max_length=120),
+                        firm_name: str | None = Query(default=None, max_length=80),
+                        include_risk: bool = True, ctx: OrgContext = Depends(viewer)):
+    """Landscape client presentation. Demo deals are always watermarked."""
+    prop, sc, result = _load(ctx, property_id, scenario_id)
+    clean = lambda v: (v or "").strip() or None  # noqa: E731
+    data = presentation(prop, sc.name, result, title=clean(title), prepared_for=clean(prepared_for),
+                        presenter=ctx.user.name or ctx.user.email, firm_name=clean(firm_name),
+                        include_risk=include_risk)
+    ctx.audit("report.presentation", "property", prop.id, property_id=prop.id, scenario=sc.name,
+              prepared_for=clean(prepared_for))
+    ctx.db.commit()
+    return Response(data, media_type="application/pdf",
+                    headers={"Content-Disposition": f'attachment; filename="{_filename(prop, "presentation.pdf")}"'})
+
+
+@router.get("/reports/summary-pack")
+def export_summary_pack(ids: str = Query(min_length=1, max_length=2000), ctx: OrgContext = Depends(viewer)):
+    """Comparison table plus a one-page summary for each selected deal (base scenarios, up to 25)."""
+    try:
+        wanted = list(dict.fromkeys(uuid.UUID(x) for x in ids.split(",") if x.strip()))
+    except ValueError as exc:
+        raise HTTPException(422, "ids must be comma-separated deal ids") from exc
+    if not 1 <= len(wanted) <= 25:
+        raise HTTPException(422, "Select between 1 and 25 deals")
+    deals = []
+    for pid in wanted:
+        prop, sc, result = _load(ctx, pid, None)
+        deals.append((prop, sc.name, result))
+    data = summary_pack(deals)
+    for prop, _, _ in deals:
+        ctx.audit("report.summary_pack", "property", prop.id, property_id=prop.id, deals=len(deals))
+    ctx.db.commit()
+    return Response(data, media_type="application/pdf",
+                    headers={"Content-Disposition": 'attachment; filename="deal-summary-pack.pdf"'})
 
 
 # ----------------------------------------------------------------- analyst

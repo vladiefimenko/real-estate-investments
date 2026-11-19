@@ -5,11 +5,12 @@ from __future__ import annotations
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Response
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy import func, or_, select
 
 from ..deps import OrgContext, admin, analyst, viewer
 from ..features import PLANS
-from ..models import Property, Scenario, UnderwritingResult, User
+from ..models import PROPERTY_STATUSES, Property, Scenario, UnderwritingResult, User
 from ..schemas import PropertyCreate, PropertyOut, PropertySummary, PropertyUpdate
 from ..services.property_types import catalogue, default_assumptions
 from ..services.underwriting import headline, run_and_store, sync_property_to_scenarios
@@ -115,6 +116,37 @@ def update_property(property_id: uuid.UUID, body: PropertyUpdate, ctx: OrgContex
               changes={k: {"before": _jsonable(before[k]), "after": _jsonable(v)} for k, v in changes.items()})
     ctx.db.commit()
     return prop
+
+
+class BulkStatusIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    ids: list[uuid.UUID] = Field(min_length=1, max_length=100)
+    status: str
+
+    @field_validator("status")
+    @classmethod
+    def _status(cls, v: str) -> str:
+        if v not in PROPERTY_STATUSES:
+            raise ValueError(f"Status must be one of: {', '.join(PROPERTY_STATUSES)}")
+        return v
+
+
+@router.post("/properties/bulk-status")
+def bulk_status(body: BulkStatusIn, ctx: OrgContext = Depends(analyst)):
+    """Move several deals to one stage. All-or-nothing: any unknown deal aborts the change."""
+    props = [ctx.get_property(pid) for pid in dict.fromkeys(body.ids)]
+    changed = []
+    for prop in props:
+        if prop.status == body.status:
+            continue
+        before = prop.status
+        prop.status = body.status
+        prop.updated_by = ctx.user.id
+        ctx.audit("property.update", "property", prop.id, property_id=prop.id, bulk=True,
+                  changes={"status": {"before": before, "after": body.status}})
+        changed.append(str(prop.id))
+    ctx.db.commit()
+    return {"status": body.status, "updated": changed, "unchanged": len(props) - len(changed)}
 
 
 @router.delete("/properties/{property_id}", status_code=204)
