@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  BookOpen,
   Building2,
   Check,
   ChevronsUpDown,
@@ -36,6 +37,7 @@ const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/deals", label: "Deals", icon: Building2 },
   { href: "/compare", label: "Compare", icon: GitCompareArrows },
+  { href: "/glossary", label: "Glossary", icon: BookOpen },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 

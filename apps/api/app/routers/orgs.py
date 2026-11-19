@@ -222,6 +222,31 @@ def accept_invitation(body: AcceptInvitationIn, response: Response, db: Session 
 
 
 # --------------------------------------------------------------- audit log
+ONBOARDING_ACTIONS = {
+    "document_uploaded": ("document.upload",),
+    "field_verified": ("extraction.accept", "extraction.edit", "extraction.reject"),
+    "scenario_explored": ("scenario.create", "scenario.update", "extraction.apply", "risk.monte_carlo", "financing.create"),
+    "report_generated": ("report.excel", "report.one_pager", "report.ic_memo"),
+}
+
+
+@router.get("/org/onboarding")
+def onboarding(ctx: OrgContext = Depends(viewer)):
+    """Getting Started checklist progress, derived from what the workspace has actually done.
+
+    Demo seeding does not count: it creates demo properties (excluded below) and emits no
+    upload, review, scenario or report audit events.
+    """
+    def any_action(actions: tuple[str, ...]) -> bool:
+        return ctx.db.scalar(select(AuditLog.id).where(
+            AuditLog.org_id == ctx.org.id, AuditLog.action.in_(actions)).limit(1)) is not None
+
+    steps = {"deal_created": ctx.db.scalar(select(Property.id).where(
+        Property.org_id == ctx.org.id, Property.is_demo.is_(False)).limit(1)) is not None}
+    steps.update({k: any_action(v) for k, v in ONBOARDING_ACTIONS.items()})
+    return {"steps": steps, "completed": sum(steps.values()), "total": len(steps)}
+
+
 @router.get("/org/audit")
 def audit_log(limit: int = 100, property_id: uuid.UUID | None = None, ctx: OrgContext = Depends(viewer)):
     q = select(AuditLog, User.name).outerjoin(User, User.id == AuditLog.user_id).where(AuditLog.org_id == ctx.org.id)

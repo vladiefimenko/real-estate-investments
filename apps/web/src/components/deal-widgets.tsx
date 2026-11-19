@@ -1,12 +1,15 @@
 "use client";
 
 /** Reusable deal-level result widgets (used by Overview and Underwriting). */
+import { ChevronDown } from "lucide-react";
+import Link from "next/link";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 import { AXIS_PROPS, BAR_RADIUS, ChartTooltip, GRID_PROPS, Legend, SERIES } from "@/components/charts";
-import { Metric } from "@/components/common";
+import { Metric, TermInfo } from "@/components/common";
 import { Badge, Card, CardContent, CardDescription, CardHeader, CardTitle, Table, TBody, TD, TH, THead, TR } from "@/components/ui/primitives";
 import { isNum, mult, pct, usd, usdShort } from "@/lib/format";
+import { RISK_GUIDE } from "@/lib/risk-guide";
 import type { UnderwritingResult } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -15,26 +18,26 @@ export function HeadlineMetrics({ r }: { r: UnderwritingResult }) {
   return (
     <div className="@container">
       <div className="grid grid-cols-2 gap-3 @2xl:grid-cols-4 @6xl:grid-cols-8">
-      <Metric label="NOI (Y1)" value={usdShort(m.noi_year1)} sub={`Expense ratio ${pct(m.expense_ratio_year1, 1)}`} />
-      <Metric label="Going-in cap" value={pct(m.going_in_cap_rate)} sub={`Exit ${pct(m.exit_cap_rate)}`} hint="Year-1 NOI ÷ purchase price." />
+      <Metric label="NOI (Y1)" term="noi" value={usdShort(m.noi_year1)} sub={`Expense ratio ${pct(m.expense_ratio_year1, 1)}`} />
+      <Metric label="Going-in cap" term="cap-rate" value={pct(m.going_in_cap_rate)} sub={`Exit ${pct(m.exit_cap_rate)}`} />
       <Metric
         label="Levered IRR"
         value={pct(m.irr_levered)}
         tone={isNum(m.irr_levered) && m.irr_levered < 0 ? "bad" : undefined}
         sub={`Unlevered ${pct(m.irr_unlevered)}`}
-        hint="Rate at which NPV of levered (common equity) cash flows is zero."
+        term="irr"
       />
-      <Metric label="Equity multiple" value={mult(m.equity_multiple_levered)} sub={`Profit ${usdShort(m.profit_levered)}`} />
-      <Metric label="Cash-on-cash (Y1)" value={pct(m.cash_on_cash_year1)} sub={`Avg ${pct(m.avg_cash_on_cash)}`} />
+      <Metric label="Equity multiple" term="equity-multiple" value={mult(m.equity_multiple_levered)} sub={`Profit ${usdShort(m.profit_levered)}`} />
+      <Metric label="Cash-on-cash (Y1)" term="cash-on-cash" value={pct(m.cash_on_cash_year1)} sub={`Avg ${pct(m.avg_cash_on_cash)}`} />
       <Metric
         label="DSCR (Y1)"
         value={mult(m.dscr_year1)}
         tone={isNum(m.min_dscr) && m.min_dscr < 1.2 ? "warn" : undefined}
         sub={`Min ${mult(m.min_dscr)}`}
-        hint="NOI ÷ annual debt service."
+        term="dscr"
       />
-      <Metric label="LTV / LTC" value={m.ltv ? pct(m.ltv, 1) : "—"} sub={m.ltc ? `LTC ${pct(m.ltc, 1)}` : "Unlevered"} />
-      <Metric label="NPV (levered)" value={usdShort(m.npv_levered)} tone={m.npv_levered < 0 ? "bad" : undefined} sub={`@ ${pct(r.assumptions.discount_rate)} discount`} />
+      <Metric label="LTV / LTC" term="ltv" value={m.ltv ? pct(m.ltv, 1) : "—"} sub={m.ltc ? `LTC ${pct(m.ltc, 1)}` : "Unlevered"} />
+      <Metric label="NPV (levered)" term="npv" value={usdShort(m.npv_levered)} tone={m.npv_levered < 0 ? "bad" : undefined} sub={`@ ${pct(r.assumptions.discount_rate)} discount`} />
       </div>
     </div>
   );
@@ -122,17 +125,49 @@ export function RiskPanel({ r }: { r: UnderwritingResult }) {
         <div className="text-3xl font-semibold tabular">{Math.round(risk.score)}</div>
         <div>
           <Badge variant={risk.level === "high" ? "danger" : risk.level === "moderate" ? "warning" : "success"}>{risk.level} risk</Badge>
-          <div className="mt-0.5 text-xs text-muted-foreground">Screening score, 0 (low) – 100 (high)</div>
+          <div className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
+            Screening score, 0 (low) – 100 (high) <TermInfo term="risk-score" />
+          </div>
         </div>
       </div>
       <ul className="space-y-1.5 text-sm">
         {risk.factors.length === 0 && <li className="text-muted-foreground">No screening flags triggered.</li>}
-        {risk.factors.map((f) => (
-          <li key={f.factor} className="flex gap-2">
-            <span className="mt-0.5 rounded bg-muted px-1.5 text-[11px] font-medium tabular">+{f.points}</span>
-            <span>{f.message}</span>
-          </li>
-        ))}
+        {risk.factors.map((f) => {
+          const guide = RISK_GUIDE[f.factor];
+          if (!guide)
+            return (
+              <li key={f.factor} className="flex gap-2">
+                <span className="mt-0.5 rounded bg-muted px-1.5 text-[11px] font-medium tabular">+{f.points}</span>
+                <span>{f.message}</span>
+              </li>
+            );
+          return (
+            <li key={f.factor}>
+              <details className="group rounded-md">
+                <summary className="flex cursor-pointer list-none gap-2 rounded-md hover:bg-muted/60 [&::-webkit-details-marker]:hidden">
+                  <span className="mt-0.5 h-fit rounded bg-muted px-1.5 text-[11px] font-medium tabular">+{f.points}</span>
+                  <span className="flex-1">{f.message}</span>
+                  <ChevronDown className="mt-0.5 size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" aria-hidden />
+                </summary>
+                <div className="mt-1.5 ml-9 space-y-1.5 rounded-md border bg-muted/30 p-3 text-xs">
+                  <div className="font-semibold text-foreground">{guide.title}</div>
+                  <p>{guide.meaning}</p>
+                  <p>
+                    <span className="font-medium">How it&apos;s scored:</span> {guide.threshold}
+                  </p>
+                  <p>
+                    <span className="font-medium">What to do:</span> {guide.action}
+                  </p>
+                  {guide.term && (
+                    <Link href={`/glossary#${guide.term}`} className="inline-block text-accent underline-offset-2 hover:underline">
+                      Learn the term in the glossary
+                    </Link>
+                  )}
+                </div>
+              </details>
+            </li>
+          );
+        })}
       </ul>
       {(r.warnings.length > 0 || r.covenant_breaches.length > 0) && (
         <div className="space-y-1.5 border-t pt-3 text-sm">
