@@ -5,10 +5,18 @@ from __future__ import annotations
 import hashlib
 from functools import lru_cache
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 DEV_SECRET = "dev-insecure-secret-change-me-0123456789abcdef"
+
+
+def normalize_database_url(url: str) -> str:
+    """Accept the plain ``postgres://`` / ``postgresql://`` URLs hosting providers hand out."""
+    for prefix in ("postgres://", "postgresql://"):
+        if url.startswith(prefix):
+            return "postgresql+psycopg://" + url[len(prefix):]
+    return url
 
 
 class Settings(BaseSettings):
@@ -26,7 +34,7 @@ class Settings(BaseSettings):
 
     cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:3000"])
 
-    storage_backend: str = "local"  # local | s3
+    storage_backend: str = "local"  # local | database | s3
     storage_path: str = "./storage"
     storage_encryption_key: str | None = None  # base64 32 bytes; derived from secret_key when unset
     s3_bucket: str | None = None
@@ -48,6 +56,11 @@ class Settings(BaseSettings):
 
     seed_demo_on_register: bool = True
     log_level: str = "INFO"
+
+    @field_validator("database_url", mode="after")
+    @classmethod
+    def _use_psycopg_driver(cls, v: str) -> str:
+        return normalize_database_url(v)
 
     @property
     def is_production(self) -> bool:

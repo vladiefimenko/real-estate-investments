@@ -45,6 +45,12 @@ docker compose up --build
 Migrations run as the owner role. The API connects as `axiom_app`, a role with neither superuser rights nor
 `BYPASSRLS`, so row-level security is always enforced.
 
+### Free public deployment
+
+To run Axiom on a public URL for free (Render web service + Neon PostgreSQL), follow
+[`DEPLOY.md`](DEPLOY.md). `render.yaml` and `Dockerfile.render` package the API and the web app
+into a single container.
+
 ### Enabling AI
 
 Set `ANTHROPIC_API_KEY` in the API's environment. The default model is `claude-opus-5-5` (`AXIOM_AI_MODEL`).

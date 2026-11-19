@@ -399,5 +399,17 @@ CREATE POLICY tenant_isolation ON audit_logs USING (org_id = NULLIF(current_sett
 
 UPDATE alembic_version SET version_num='0002' WHERE alembic_version.version_num = '0001';
 
+-- Running upgrade 0002 -> 0003
+
+CREATE TABLE stored_objects (
+    key VARCHAR(512) NOT NULL, 
+    content_type VARCHAR(200) NOT NULL, 
+    data BYTEA NOT NULL, 
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL, 
+    PRIMARY KEY (key)
+);
+
+UPDATE alembic_version SET version_num='0003' WHERE alembic_version.version_num = '0002';
+
 COMMIT;
 

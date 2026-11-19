@@ -18,6 +18,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    LargeBinary,
     String,
     Text,
     UniqueConstraint,
@@ -293,6 +294,20 @@ class AuditLog(Base):
     entity_id: Mapped[str | None] = mapped_column(String(64))
     property_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, index=True)
     details: Mapped[dict[str, Any]] = mapped_column(JSONType, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class StoredObject(Base):
+    """Encrypted file contents for the ``database`` storage backend.
+
+    Used on hosts without a persistent disk (e.g. free container tiers). Keys are
+    namespaced by organization; access is only ever through the storage service.
+    """
+
+    __tablename__ = "stored_objects"
+    key: Mapped[str] = mapped_column(String(512), primary_key=True)
+    content_type: Mapped[str] = mapped_column(String(200), nullable=False)
+    data: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
