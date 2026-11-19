@@ -439,5 +439,28 @@ CREATE POLICY tenant_isolation ON assumption_libraries USING (org_id = NULLIF(cu
 
 UPDATE alembic_version SET version_num='0004' WHERE alembic_version.version_num = '0003';
 
+-- Running upgrade 0004 -> 0005
+
+CREATE TABLE api_keys (
+    id UUID NOT NULL, 
+    org_id UUID NOT NULL, 
+    name VARCHAR(120) NOT NULL, 
+    prefix VARCHAR(16) NOT NULL, 
+    key_hash VARCHAR(64) NOT NULL, 
+    created_by UUID NOT NULL, 
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL, 
+    expires_at TIMESTAMP WITH TIME ZONE, 
+    last_used_at TIMESTAMP WITH TIME ZONE, 
+    revoked_at TIMESTAMP WITH TIME ZONE, 
+    PRIMARY KEY (id), 
+    FOREIGN KEY(created_by) REFERENCES users (id) ON DELETE CASCADE, 
+    FOREIGN KEY(org_id) REFERENCES organizations (id) ON DELETE CASCADE, 
+    UNIQUE (key_hash)
+);
+
+CREATE INDEX ix_api_keys_org_id ON api_keys (org_id);
+
+UPDATE alembic_version SET version_num='0005' WHERE alembic_version.version_num = '0004';
+
 COMMIT;
 

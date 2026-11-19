@@ -205,10 +205,12 @@ export const HELP: { pattern: RegExp; topic: HelpTopic }[] = [
     pattern: /^\/settings/,
     topic: {
       title: "Settings",
-      summary: "Manage your workspace: members and roles, features, billing and the audit log.",
+      summary: "Manage your workspace: members and roles, features, billing, the audit log, usage and API keys.",
       steps: [
         "Invite teammates and give them a role: Owner, Admin, Analyst or Viewer.",
         "Viewers can read everything but can't change deals.",
+        "Usage shows active users and activity for licensing; API keys give other systems read-only access to deals.",
+        "In Audit log, export the full history as CSV or JSON for compliance reviews.",
       ],
     },
   },

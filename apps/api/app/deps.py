@@ -2,18 +2,22 @@
 
 from __future__ import annotations
 
+import threading
+import time
 import uuid
+from collections import deque
 from dataclasses import dataclass
+from datetime import timedelta
 from typing import Any
 
-from fastapi import Depends, Header, HTTPException, status
+from fastapi import Depends, Header, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .db import get_db, set_tenant
-from .models import ROLE_RANK, AuditLog, Organization, OrganizationMember, Property, User
-from .security import decode_access_token
+from .models import ROLE_RANK, ApiKey, AuditLog, Organization, OrganizationMember, Property, User, utcnow
+from .security import decode_access_token, hash_token
 
 bearer = HTTPBearer(auto_error=False)
 
@@ -38,6 +42,7 @@ class OrgContext:
     org: Organization
     role: str
     db: Session
+    api_key_id: uuid.UUID | None = None
 
     def require(self, role: str) -> None:
         if ROLE_RANK[self.role] < ROLE_RANK[role]:
@@ -55,6 +60,8 @@ class OrgContext:
         property_id: uuid.UUID | None = None,
         **details: Any,
     ) -> None:
+        if self.api_key_id is not None:
+            details = {**details, "via_api_key": str(self.api_key_id)}
         self.db.add(
             AuditLog(
                 org_id=self.org.id,
@@ -74,11 +81,69 @@ class OrgContext:
         return prop
 
 
+API_KEY_PREFIX = "axk_"
+# API keys are read-only and limited to deal data. Members, settings, keys, audit and billing are never reachable.
+API_KEY_PATHS = ("/api/properties", "/api/scenarios", "/api/compare", "/api/dashboard", "/api/property-types")
+API_KEY_RATE = (120, 60.0)  # requests per window (seconds), per key, per process
+_rate_lock = threading.Lock()
+_rate_hits: dict[uuid.UUID, deque[float]] = {}
+
+
+def _rate_limited(key_id: uuid.UUID) -> bool:
+    limit, window = API_KEY_RATE
+    now = time.monotonic()
+    with _rate_lock:
+        hits = _rate_hits.setdefault(key_id, deque())
+        while hits and now - hits[0] > window:
+            hits.popleft()
+        if len(hits) >= limit:
+            return True
+        hits.append(now)
+        return False
+
+
+def _api_key_context(token: str, request: Request, db: Session) -> OrgContext:
+    if request.method not in ("GET", "HEAD"):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "API keys are read-only")
+    path = request.url.path
+    if not any(path == p or path.startswith(p + "/") for p in API_KEY_PATHS):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "API keys cannot access this endpoint")
+    key = db.scalars(select(ApiKey).where(ApiKey.key_hash == hash_token(token))).first()
+    now = utcnow()
+    if key is None or key.revoked_at is not None:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid API key")
+    expires = key.expires_at.replace(tzinfo=now.tzinfo) if key.expires_at and key.expires_at.tzinfo is None \
+        else key.expires_at
+    if expires is not None and expires <= now:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "API key has expired")
+    user = db.get(User, key.created_by)
+    member = db.scalars(select(OrganizationMember).where(
+        OrganizationMember.org_id == key.org_id, OrganizationMember.user_id == key.created_by)).first()
+    org = db.get(Organization, key.org_id)
+    if user is None or not user.is_active or user.deleted_at is not None or member is None \
+            or org is None or org.deleted_at is not None:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "API key is no longer valid")
+    if _rate_limited(key.id):
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "API key rate limit exceeded",
+                            headers={"Retry-After": str(int(API_KEY_RATE[1]))})
+    last = key.last_used_at.replace(tzinfo=now.tzinfo) if key.last_used_at and key.last_used_at.tzinfo is None \
+        else key.last_used_at
+    if last is None or now - last > timedelta(minutes=1):
+        key.last_used_at = now
+        db.commit()
+    set_tenant(db, org.id)
+    return OrgContext(user=user, org=org, role="viewer", db=db, api_key_id=key.id)
+
+
 def get_org_context(
+    request: Request,
     x_org_id: str | None = Header(default=None, alias="X-Org-Id"),
-    user: User = Depends(get_current_user),
+    creds: HTTPAuthorizationCredentials | None = Depends(bearer),
     db: Session = Depends(get_db),
 ) -> OrgContext:
+    if creds is not None and creds.scheme.lower() == "bearer" and creds.credentials.startswith(API_KEY_PREFIX):
+        return _api_key_context(creds.credentials, request, db)
+    user = get_current_user(creds, db)
     q = select(OrganizationMember).where(OrganizationMember.user_id == user.id)
     if x_org_id:
         try:
