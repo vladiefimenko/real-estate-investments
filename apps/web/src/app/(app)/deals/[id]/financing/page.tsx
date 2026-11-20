@@ -8,6 +8,7 @@ import { toast } from "sonner";
 
 import { AXIS_PROPS, BAR_RADIUS, ChartTooltip, GRID_PROPS, SERIES } from "@/components/charts";
 import { Callout, EmptyState, ErrorBlock, LoadingBlock } from "@/components/common";
+import { CapitalStack, CopyStructure } from "@/components/capital-stack";
 import { useDeal } from "@/components/deal-context";
 import { WaterfallCard } from "@/components/waterfall-card";
 import { Button } from "@/components/ui/button";
@@ -47,6 +48,7 @@ interface Breach {
 interface CompareRow {
   name: string;
   loan_amount: number;
+  mezzanine: number;
   preferred_equity: number;
   equity_invested: number;
   ltv: number | null;
@@ -71,10 +73,11 @@ type Better = "high" | "low" | null;
 
 const METRIC_ROWS: { key: keyof CompareRow; label: string; fmt: (v: number | null) => string; better: Better; hint?: string }[] = [
   { key: "loan_amount", label: "Senior loan", fmt: (v) => usd(v), better: null },
+  { key: "mezzanine", label: "Mezzanine loan", fmt: (v) => usd(v), better: null },
   { key: "preferred_equity", label: "Preferred equity", fmt: (v) => usd(v), better: null },
   { key: "equity_invested", label: "Common equity invested", fmt: (v) => usd(v), better: null },
-  { key: "ltv", label: "LTV", fmt: (v) => pct(v, 1), better: "low" },
-  { key: "ltc", label: "LTC", fmt: (v) => pct(v, 1), better: "low" },
+  { key: "ltv", label: "LTV (all debt)", fmt: (v) => pct(v, 1), better: "low" },
+  { key: "ltc", label: "LTC (all debt)", fmt: (v) => pct(v, 1), better: "low" },
   { key: "rate", label: "All-in rate", fmt: (v) => pct(v, 2), better: "low" },
   { key: "debt_service_year1", label: "Debt service (Yr 1)", fmt: (v) => usd(v), better: null },
   { key: "dscr_year1", label: "DSCR (Yr 1)", fmt: (v) => mult(v), better: "high" },
@@ -160,9 +163,12 @@ export default function FinancingPage() {
           </p>
         </div>
         {canEdit && (
-          <Button onClick={() => setEditing("new")}>
-            <Plus /> Add structure
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <CopyStructure propertyId={property.id} />
+            <Button onClick={() => setEditing("new")}>
+              <Plus /> Add structure
+            </Button>
+          </div>
         )}
       </div>
 
@@ -190,7 +196,10 @@ export default function FinancingPage() {
           ) : compare.error ? (
             <ErrorBlock error={compare.error} />
           ) : compare.data ? (
-            <Comparison rows={compare.data} />
+            <>
+              <Comparison rows={compare.data} />
+              <CapitalStack rows={compare.data.filter((r) => r.financing_id)} />
+            </>
           ) : null}
 
           <TermsTable
@@ -441,6 +450,7 @@ function TermsTable({
               <TH className="text-right">IO</TH>
               <TH className="text-right">Fees (orig. / exit)</TH>
               <TH className="text-right">Covenants</TH>
+              <TH className="text-right">Mezzanine</TH>
               <TH className="text-right">Pref. equity</TH>
               {canEdit && <TH className="pr-5 text-right">Actions</TH>}
             </TR>
@@ -475,11 +485,22 @@ function TermsTable({
                 <TD className="text-right">{f.io_period ? `${f.io_period} yr` : "—"}</TD>
                 <TD className="text-right">
                   {pct(f.fees?.origination_fee_pct ?? 0, 2)} / {pct(f.fees?.exit_fee_pct ?? 0, 2)}
+                  {!!f.fees?.prepayment_penalty_pct && <span className="block text-[11px] text-muted-foreground">{pct(f.fees.prepayment_penalty_pct, 1)} prepay</span>}
                 </TD>
                 <TD className="text-right text-xs">
                   {isNum(f.covenants?.min_dscr) && <div>DSCR ≥ {mult(f.covenants.min_dscr)}</div>}
                   {isNum(f.covenants?.max_ltv) && <div>LTV ≤ {pct(f.covenants.max_ltv, 1)}</div>}
                   {!isNum(f.covenants?.min_dscr) && !isNum(f.covenants?.max_ltv) && <span className="text-muted-foreground">—</span>}
+                </TD>
+                <TD className="text-right">
+                  {f.mezzanine?.amount ? (
+                    <span>
+                      {usdShort(f.mezzanine.amount)}
+                      <span className="block text-[11px] text-muted-foreground">{pct(f.mezzanine.interest_rate, 1)} IO</span>
+                    </span>
+                  ) : (
+                    "—"
+                  )}
                 </TD>
                 <TD className="text-right">
                   {f.preferred_equity?.amount ? (
@@ -546,12 +567,17 @@ interface FormState {
   io_period: string;
   origination_fee_pct: string;
   exit_fee_pct: string;
+  prepay_pct: string;
   min_dscr: string;
   max_ltv: string;
   pref_on: boolean;
   pref_amount: string;
   pref_rate: string;
   pref_accrual: string;
+  mezz_on: boolean;
+  mezz_amount: string;
+  mezz_rate: string;
+  mezz_fee: string;
 }
 
 function initialForm(f: Financing | null): FormState {
@@ -571,12 +597,17 @@ function initialForm(f: Financing | null): FormState {
       io_period: "0",
       origination_fee_pct: "1",
       exit_fee_pct: "0",
+      prepay_pct: "",
       min_dscr: "1.25",
       max_ltv: "",
       pref_on: false,
       pref_amount: "",
       pref_rate: "",
       pref_accrual: "",
+      mezz_on: false,
+      mezz_amount: "",
+      mezz_rate: "",
+      mezz_fee: "",
     };
   return {
     name: f.name,
@@ -593,12 +624,17 @@ function initialForm(f: Financing | null): FormState {
     io_period: String(f.io_period),
     origination_fee_pct: toPctStr(f.fees?.origination_fee_pct ?? 0),
     exit_fee_pct: toPctStr(f.fees?.exit_fee_pct ?? 0),
+    prepay_pct: toPctStr(f.fees?.prepayment_penalty_pct),
     min_dscr: isNum(f.covenants?.min_dscr) ? String(f.covenants.min_dscr) : "",
     max_ltv: toPctStr(f.covenants?.max_ltv),
     pref_on: !!f.preferred_equity?.amount,
     pref_amount: f.preferred_equity?.amount ? f.preferred_equity.amount.toLocaleString("en-US") : "",
     pref_rate: toPctStr(f.preferred_equity?.pref_rate),
     pref_accrual: toPctStr(f.preferred_equity?.accrual_rate),
+    mezz_on: !!f.mezzanine?.amount,
+    mezz_amount: f.mezzanine?.amount ? f.mezzanine.amount.toLocaleString("en-US") : "",
+    mezz_rate: toPctStr(f.mezzanine?.interest_rate),
+    mezz_fee: toPctStr(f.mezzanine?.origination_fee_pct),
   };
 }
 
@@ -606,6 +642,7 @@ function toBody(s: FormState, isActive: boolean) {
   const fees: Record<string, number> = {};
   if (filled(s.origination_fee_pct)) fees.origination_fee_pct = fromPctStr(s.origination_fee_pct);
   if (filled(s.exit_fee_pct)) fees.exit_fee_pct = fromPctStr(s.exit_fee_pct);
+  if (filled(s.prepay_pct)) fees.prepayment_penalty_pct = fromPctStr(s.prepay_pct);
   const covenants: Record<string, number> = {};
   if (filled(s.min_dscr)) covenants.min_dscr = toNum(s.min_dscr);
   if (filled(s.max_ltv)) covenants.max_ltv = fromPctStr(s.max_ltv);
@@ -632,6 +669,14 @@ function toBody(s: FormState, isActive: boolean) {
             accrual_rate: filled(s.pref_accrual) ? fromPctStr(s.pref_accrual) : 0,
           }
         : null,
+    mezzanine:
+      s.mezz_on && filled(s.mezz_amount)
+        ? {
+            amount: toNum(s.mezz_amount),
+            interest_rate: filled(s.mezz_rate) ? fromPctStr(s.mezz_rate) : 0,
+            origination_fee_pct: filled(s.mezz_fee) ? fromPctStr(s.mezz_fee) : 0,
+          }
+        : null,
     is_active: isActive,
   };
 }
@@ -647,9 +692,10 @@ function validate(s: FormState): string | null {
   else nums.push(["LTV", s.ltv]);
   if (s.rate_type === "fixed") nums.push(["Interest rate", s.interest_rate]);
   else nums.push(["Index rate", s.index_rate], ["Spread", s.spread]);
-  for (const k of ["origination_fee_pct", "exit_fee_pct", "min_dscr", "max_ltv"] as const)
+  for (const k of ["origination_fee_pct", "exit_fee_pct", "prepay_pct", "min_dscr", "max_ltv"] as const)
     if (filled(s[k])) nums.push([k, s[k]]);
   if (s.pref_on) nums.push(["Preferred equity amount", s.pref_amount]);
+  if (s.mezz_on) nums.push(["Mezzanine amount", s.mezz_amount], ["Mezzanine rate", s.mezz_rate]);
   for (const [label, v] of nums) {
     if (!filled(v) || !Number.isFinite(toNum(v))) return `${label.replace(/_/g, " ")} must be a number.`;
   }
@@ -792,6 +838,24 @@ function StructureDialog({
             <Field id={id("io")} label="Interest-only period" suffix="yrs" value={s.io_period} onChange={set("io_period")} />
             <Field id={id("orig")} label="Origination fee" suffix="%" value={s.origination_fee_pct} onChange={set("origination_fee_pct")} />
             <Field id={id("exit")} label="Exit fee" suffix="%" value={s.exit_fee_pct} onChange={set("exit_fee_pct")} />
+            <Field id={id("prepay")} label="Prepayment penalty" suffix="%" value={s.prepay_pct} onChange={set("prepay_pct")} placeholder="0" hint="Charged if sold before the term ends" />
+          </fieldset>
+
+          <fieldset className="space-y-3">
+            <legend className="sr-only">Mezzanine loan</legend>
+            <div className="flex items-center gap-3">
+              <Switch id={id("mezz-on")} checked={s.mezz_on} onCheckedChange={(v) => setS((prev) => ({ ...prev, mezz_on: v }))} />
+              <Label htmlFor={id("mezz-on")} className="text-sm text-foreground">
+                Add a mezzanine loan (second, interest-only loan behind the senior loan)
+              </Label>
+            </div>
+            {s.mezz_on && (
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                <Field id={id("mezz-amount")} label="Amount" suffix="$" value={s.mezz_amount} onChange={set("mezz_amount")} placeholder="2,000,000" />
+                <Field id={id("mezz-rate")} label="Interest rate" suffix="%" value={s.mezz_rate} onChange={set("mezz_rate")} placeholder="11" />
+                <Field id={id("mezz-fee")} label="Origination fee" suffix="%" value={s.mezz_fee} onChange={set("mezz_fee")} placeholder="1" />
+              </div>
+            )}
           </fieldset>
 
           <fieldset className="grid grid-cols-2 gap-3 sm:grid-cols-3">

@@ -315,6 +315,7 @@ export interface Financing {
   io_period: number;
   fees: Record<string, number>;
   covenants: Record<string, number>;
+  mezzanine: { amount: number; interest_rate: number; origination_fee_pct?: number } | null;
   preferred_equity: { amount: number; pref_rate: number; accrual_rate?: number } | null;
   is_active: boolean;
 }

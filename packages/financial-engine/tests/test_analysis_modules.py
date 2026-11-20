@@ -221,14 +221,17 @@ def test_compare_structures(simple_mf):
                                     "spread": 0.03, "amortization_years": 0, "term_years": 3}},
         {"name": "Agency + Pref", "loan": {"ltv": 0.6, "interest_rate": 0.055},
          "preferred_equity": {"amount": 1_000_000, "pref_rate": 0.1}},
+        {"name": "Agency + Mezz", "loan": {"ltv": 0.6, "interest_rate": 0.055},
+         "mezzanine": {"amount": 1_000_000, "interest_rate": 0.11}},
     ]
     out = compare_structures(simple_mf, structures)
-    assert [o["name"] for o in out] == ["All cash", "Agency", "Bridge", "Agency + Pref"]
+    assert [o["name"] for o in out] == ["All cash", "Agency", "Bridge", "Agency + Pref", "Agency + Mezz"]
     assert out[0]["rate"] is None and out[0]["dscr_year1"] is None
     assert out[2]["rate"] == pytest.approx(0.073)
     assert out[1]["equity_invested"] < out[0]["equity_invested"]
     assert any(w["field"] == "loan.term_years" for w in out[2]["warnings"])
     assert out[3]["preferred_equity"] == 1_000_000
+    assert out[4]["mezzanine"] == 1_000_000 and out[4]["dscr_year1"] < out[3]["dscr_year1"] * 2
 
 
 # ----------------------------------------------------------- development

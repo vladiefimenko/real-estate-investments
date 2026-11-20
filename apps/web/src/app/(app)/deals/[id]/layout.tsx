@@ -1,7 +1,7 @@
 "use client";
 
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { ChevronLeft, MonitorPlay, Trash2 } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ChevronLeft, FileSearch, MonitorPlay, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useParams, usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
@@ -49,6 +49,13 @@ export default function DealLayout({ children }: { children: React.ReactNode }) 
   const features = useFeatures();
   const canEdit = hasRole("analyst");
   const canDelete = hasRole("admin");
+  const pending = useQuery({
+    queryKey: [org, "extractions", id, "pending"],
+    queryFn: () => api<{ id: string; document_id: string }[]>(`/api/properties/${id}/extractions?status=pending`),
+    enabled: canEdit,
+  });
+  const pendingCount = pending.data?.length ?? 0;
+  const onReview = /\/documents\/[^/]+/.test(pathname);
 
   const [gate, setGate] = useState<{ status: string; error: GateError } | null>(null);
   const setStatus = useMutation({
@@ -147,6 +154,20 @@ export default function DealLayout({ children }: { children: React.ReactNode }) 
           )}
           </div>
         </div>
+        {canEdit && pendingCount > 0 && !onReview && (
+          <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md border border-warning/40 bg-warning/8 px-3 py-2 text-sm">
+            <FileSearch className="size-4 shrink-0 text-warning" aria-hidden />
+            <span>
+              <span className="font-medium">
+                {pendingCount} extracted value{pendingCount === 1 ? "" : "s"} awaiting review.
+              </span>{" "}
+              <span className="text-muted-foreground">Only verified data enters the model.</span>
+            </span>
+            <Link href={`/deals/${id}/documents/${pending.data![0].document_id}`} className="ml-auto font-medium underline underline-offset-4">
+              Review now
+            </Link>
+          </div>
+        )}
         {p.is_demo && (
           <Callout tone="danger" className="mt-3 py-2">
             Fictional sample deal for demonstration purposes only. All figures are illustrative and every export is watermarked.

@@ -13,6 +13,7 @@ from axiom_engine.montecarlo import run_monte_carlo
 from axiom_engine.scenarios import SENSITIVITY_METRICS, centered_range, get_path, sensitivity_table
 from axiom_engine.valuation import valuation_summary
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from pydantic import BaseModel
 from sqlalchemy import select
 
 from ..deps import OrgContext, analyst, deal_reader, viewer
@@ -151,6 +152,7 @@ def _structure_to_engine(f: FinancingStructure) -> dict[str, Any]:
         "term_years": f.term_years, "io_years": f.io_period,
         "origination_fee_pct": (f.fees or {}).get("origination_fee_pct", 0.0),
         "exit_fee_pct": (f.fees or {}).get("exit_fee_pct", 0.0),
+        "prepayment_penalty_pct": (f.fees or {}).get("prepayment_penalty_pct", 0.0),
         "min_dscr_covenant": (f.covenants or {}).get("min_dscr"),
         "max_ltv_covenant": (f.covenants or {}).get("max_ltv"),
     }
@@ -184,6 +186,7 @@ def _check_structure(prop: Property, ctx: OrgContext, f: FinancingStructure) -> 
     sc = get_scenario(ctx, prop)
     a = dict(sc.assumptions_json)
     a["loan"] = _structure_to_engine(f)
+    a["mezzanine"] = f.mezzanine
     a["preferred_equity"] = f.preferred_equity
     try:
         run_underwriting(a)
@@ -203,6 +206,40 @@ def update_financing(financing_id: uuid.UUID, body: FinancingIn, ctx: OrgContext
     ctx.db.commit()
     if f.is_active:
         return activate_financing(f.id, ctx)
+    return f
+
+
+@router.get("/financing")
+def financing_library(exclude_property: uuid.UUID | None = None, ctx: OrgContext = Depends(analyst)):
+    """Structures across the workspace's other deals, to copy as a starting point."""
+    q = (select(FinancingStructure, Property.name).join(Property, Property.id == FinancingStructure.property_id)
+         .where(FinancingStructure.org_id == ctx.org.id, Property.deleted_at.is_(None))
+         .order_by(Property.name, FinancingStructure.created_at))
+    if exclude_property:
+        q = q.where(FinancingStructure.property_id != exclude_property)
+    return [{**FinancingOut.model_validate(f).model_dump(mode="json"), "property_name": name}
+            for f, name in ctx.db.execute(q).all()]
+
+
+class CloneIn(BaseModel):
+    financing_id: uuid.UUID
+
+
+@router.post("/properties/{property_id}/financing/clone", response_model=FinancingOut, status_code=201)
+def clone_financing(property_id: uuid.UUID, body: CloneIn, ctx: OrgContext = Depends(analyst)):
+    """Copy another deal's structure (terms only; it starts inactive)."""
+    prop = ctx.get_property(property_id)
+    src = _financing(ctx, body.financing_id)
+    ctx.get_property(src.property_id)  # the source deal must still exist
+    data = FinancingIn.model_validate(FinancingOut.model_validate(src).model_dump()).model_dump(exclude={"is_active"})
+    data["name"] = f"{src.name} (copy)"[:120]
+    f = FinancingStructure(org_id=ctx.org.id, property_id=prop.id, **data)
+    ctx.db.add(f)
+    ctx.db.flush()
+    _check_structure(prop, ctx, f)
+    ctx.audit("financing.create", "financing_structure", f.id, property_id=prop.id, name=f.name,
+              copied_from=str(src.id))
+    ctx.db.commit()
     return f
 
 
@@ -232,6 +269,7 @@ def activate_financing(financing_id: uuid.UUID, ctx: OrgContext = Depends(analys
     sc = get_scenario(ctx, prop)
     a = dict(sc.assumptions_json)
     a["loan"] = _structure_to_engine(f)
+    a["mezzanine"] = f.mezzanine
     a["preferred_equity"] = f.preferred_equity
     sc.assumptions_json = a
     run_and_store(ctx, prop, sc)
@@ -248,9 +286,9 @@ def financing_compare(property_id: uuid.UUID, scenario_id: uuid.UUID | None = No
     sc = get_scenario(ctx, prop, scenario_id)
     structs = ctx.db.scalars(select(FinancingStructure).where(FinancingStructure.property_id == prop.id)
                              .order_by(FinancingStructure.created_at)).all()
-    payload = [{"name": "All cash (unlevered)", "loan": None, "preferred_equity": None}]
-    payload += [{"name": f.name, "loan": _structure_to_engine(f), "preferred_equity": f.preferred_equity}
-                for f in structs]
+    payload = [{"name": "All cash (unlevered)", "loan": None, "mezzanine": None, "preferred_equity": None}]
+    payload += [{"name": f.name, "loan": _structure_to_engine(f), "mezzanine": f.mezzanine,
+                 "preferred_equity": f.preferred_equity} for f in structs]
     try:
         rows = compare_structures(sc.assumptions_json, payload)
     except AssumptionError as exc:

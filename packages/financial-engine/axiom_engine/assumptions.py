@@ -63,12 +63,22 @@ class Loan:
     exit_fee_pct: float = 0.0
     min_dscr_covenant: float | None = None
     max_ltv_covenant: float | None = None
+    prepayment_penalty_pct: float = 0.0  # % of the payoff, charged when the loan is repaid before term_years
 
     @property
     def all_in_rate(self) -> float:
         if self.rate_type == "floating":
             return self.index_rate + self.spread
         return self.interest_rate
+
+
+@dataclass
+class MezzanineLoan:
+    """Subordinate, interest-only loan behind the senior loan; repaid in full at exit."""
+
+    amount: float = 0.0
+    interest_rate: float = 0.0
+    origination_fee_pct: float = 0.0
 
 
 @dataclass
@@ -117,6 +127,7 @@ class Assumptions:
 
     # Capital structure
     loan: Loan | None = None
+    mezzanine: MezzanineLoan | None = None
     preferred_equity: PreferredEquity | None = None
 
     # ------------------------------------------------------------------
@@ -135,6 +146,8 @@ class Assumptions:
         ]
         if kwargs.get("loan") is not None:
             kwargs["loan"] = _build(Loan, kwargs["loan"], "loan")
+        if kwargs.get("mezzanine") is not None:
+            kwargs["mezzanine"] = _build(MezzanineLoan, kwargs["mezzanine"], "mezzanine")
         if kwargs.get("preferred_equity") is not None:
             kwargs["preferred_equity"] = _build(PreferredEquity, kwargs["preferred_equity"], "preferred_equity")
         return cls(**kwargs)
@@ -198,6 +211,10 @@ class Assumptions:
                 err(f"expense_lines[{i}]", "Expense amounts cannot be negative")
         if self.loan is not None:
             errors.extend(_validate_loan(self.loan, self.purchase_price))
+        if self.mezzanine is not None:
+            mz = self.mezzanine
+            if mz.amount < 0 or not 0 <= mz.interest_rate < 0.5 or not 0 <= mz.origination_fee_pct <= 0.1:
+                err("mezzanine", "Amount must be non-negative, rate below 50% and fee at most 10%")
         if self.preferred_equity is not None:
             pe = self.preferred_equity
             if pe.amount < 0 or not 0 <= pe.pref_rate < 1 or not 0 <= pe.accrual_rate < 1:
@@ -267,6 +284,8 @@ def _validate_loan(loan: Loan, purchase_price: float) -> list[dict[str, str]]:
         err("io_years", "Interest-only period must be within the loan term")
     if not 0 <= loan.origination_fee_pct < 0.1 or not 0 <= loan.exit_fee_pct < 0.1:
         err("fees", "Fees must be between 0% and 10%")
+    if not 0 <= loan.prepayment_penalty_pct <= 0.2:
+        err("prepayment_penalty_pct", "Prepayment penalty must be between 0% and 20%")
     return errors
 
 

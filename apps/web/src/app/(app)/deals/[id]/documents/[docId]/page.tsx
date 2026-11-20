@@ -8,6 +8,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { ErrorBlock, LoadingBlock } from "@/components/common";
+import { VerificationTour } from "@/components/verification-tour";
 import { useDeal } from "@/components/deal-context";
 import { Button } from "@/components/ui/button";
 import { Badge, Card, Input, Select, Table, TBody, TD, TH, THead, TR } from "@/components/ui/primitives";
@@ -130,6 +131,7 @@ export default function ReviewPage() {
           {rows.data.length} proposals · {pendingCount} pending
         </span>
         <div className="ml-auto flex flex-wrap items-center gap-2">
+          <VerificationTour ready={rows.data.length > 0} onStart={() => flat[0] && select(flat[0])} />
           <OpenOriginal docId={docId} />
           {canEdit && (
             <>
@@ -143,7 +145,7 @@ export default function ReviewPage() {
                   </option>
                 ))}
               </Select>
-              <Button size="sm" onClick={() => bulk.mutate()} loading={bulk.isPending} disabled={!pendingCount}>
+              <Button data-tour="bulk" size="sm" onClick={() => bulk.mutate()} loading={bulk.isPending} disabled={!pendingCount}>
                 <Check /> Accept verified
               </Button>
             </>
@@ -154,7 +156,7 @@ export default function ReviewPage() {
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
         {/* --------------------------------------------------- Viewer */}
-        <Card className="overflow-hidden xl:sticky xl:top-20 xl:max-h-[calc(100vh-6rem)] xl:overflow-y-auto">
+        <Card data-tour="source" className="overflow-hidden xl:sticky xl:top-20 xl:max-h-[calc(100vh-6rem)] xl:overflow-y-auto">
           <div className="flex items-center justify-between border-b px-4 py-2 text-xs">
             <span className="font-medium">
               {current?.label ? `Sheet: ${current.label}` : `Page ${current?.page_number} of ${pages.data.length}`}
@@ -378,6 +380,7 @@ function FieldRow({
   const changed = JSON.stringify(r.value) !== JSON.stringify(r.original_value);
   return (
     <Card
+      data-tour="field"
       role="button"
       tabIndex={0}
       onClick={onSelect}
@@ -478,7 +481,7 @@ function FieldRow({
         </div>
       </div>
       {canEdit && (
-        <div className="mt-2.5 flex flex-wrap gap-1.5" onClick={(e) => e.stopPropagation()}>
+        <div data-tour="actions" className="mt-2.5 flex flex-wrap gap-1.5" onClick={(e) => e.stopPropagation()}>
           {r.status !== "accepted" && (
             <Button size="sm" variant="outline" onClick={() => onAction("accept")}>
               <Check /> Accept
