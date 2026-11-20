@@ -18,6 +18,7 @@ from ..features import require_feature
 from ..models import ChatMessage, Property
 from ..schemas import ChatIn, ChatMessageOut
 from ..services import ai
+from ..services import branding as br
 from ..services.analyst import build_context, rules_answer, verified_fields
 from ..services.report_excel import build_workbook
 from ..services.report_pdf import ic_memo, junior_pack, one_pager, presentation, summary_pack
@@ -60,7 +61,8 @@ def export_excel(property_id: uuid.UUID, scenario_id: uuid.UUID | None = None, c
 def export_one_pager(property_id: uuid.UUID, scenario_id: uuid.UUID | None = None,
                      ctx: OrgContext = Depends(deal_reader)):
     prop, sc, result = _load(ctx, property_id, scenario_id)
-    data = one_pager(prop, sc.name, result)
+    with br.active(ctx.org):
+        data = one_pager(prop, sc.name, result)
     ctx.audit("report.one_pager", "property", prop.id, property_id=prop.id, scenario=sc.name)
     ctx.db.commit()
     return Response(data, media_type="application/pdf",
@@ -80,9 +82,10 @@ def export_ic_memo(property_id: uuid.UUID, scenario_id: uuid.UUID | None = None,
                      "risks": ai.draft_narrative(context, "Key Risks and Mitigants")}
     from .workflow import _ic_view
 
-    data = ic_memo(prop, sc.name, result, scenarios, _irr_sensitivity(sc.assumptions_json),
-                   verified_fields(ctx, prop), narrative,
-                   ic=None if ctx.is_external else _ic_view(ctx, prop))  # internal deliberations stay internal
+    with br.active(ctx.org):
+        data = ic_memo(prop, sc.name, result, scenarios, _irr_sensitivity(sc.assumptions_json),
+                       verified_fields(ctx, prop), narrative,
+                       ic=None if ctx.is_external else _ic_view(ctx, prop))  # internal deliberations stay internal
     ctx.audit("report.ic_memo", "property", prop.id, property_id=prop.id, scenario=sc.name,
               ai_narrative=bool(narrative))
     ctx.db.commit()
@@ -97,9 +100,10 @@ def export_junior_pack(property_id: uuid.UUID, scenario_id: uuid.UUID | None = N
                        ctx: OrgContext = Depends(deal_reader)):
     """Cover note, deal summary, annotated assumptions and a glossary appendix for a junior analyst."""
     prop, sc, result = _load(ctx, property_id, scenario_id)
-    data = junior_pack(prop, sc.name, result, prepared_by=ctx.user.name or ctx.user.email,
-                       reviewed_by=(reviewed_by or "").strip() or None, note=(note or "").strip() or None,
-                       verified_count=len(verified_fields(ctx, prop)))
+    with br.active(ctx.org):
+        data = junior_pack(prop, sc.name, result, prepared_by=ctx.user.name or ctx.user.email,
+                           reviewed_by=(reviewed_by or "").strip() or None, note=(note or "").strip() or None,
+                           verified_count=len(verified_fields(ctx, prop)))
     ctx.audit("report.junior_pack", "property", prop.id, property_id=prop.id, scenario=sc.name)
     ctx.db.commit()
     return Response(data, media_type="application/pdf",
@@ -115,9 +119,10 @@ def export_presentation(property_id: uuid.UUID, scenario_id: uuid.UUID | None = 
     """Landscape client presentation. Demo deals are always watermarked."""
     prop, sc, result = _load(ctx, property_id, scenario_id)
     clean = lambda v: (v or "").strip() or None  # noqa: E731
-    data = presentation(prop, sc.name, result, title=clean(title), prepared_for=clean(prepared_for),
-                        presenter=ctx.user.name or ctx.user.email, firm_name=clean(firm_name),
-                        include_risk=include_risk)
+    with br.active(ctx.org):
+        data = presentation(prop, sc.name, result, title=clean(title), prepared_for=clean(prepared_for),
+                            presenter=ctx.user.name or ctx.user.email, firm_name=clean(firm_name),
+                            include_risk=include_risk)
     ctx.audit("report.presentation", "property", prop.id, property_id=prop.id, scenario=sc.name,
               prepared_for=clean(prepared_for))
     ctx.db.commit()
@@ -138,7 +143,8 @@ def export_summary_pack(ids: str = Query(min_length=1, max_length=2000), ctx: Or
     for pid in wanted:
         prop, sc, result = _load(ctx, pid, None)
         deals.append((prop, sc.name, result))
-    data = summary_pack(deals)
+    with br.active(ctx.org):
+        data = summary_pack(deals)
     for prop, _, _ in deals:
         ctx.audit("report.summary_pack", "property", prop.id, property_id=prop.id, deals=len(deals))
     ctx.db.commit()

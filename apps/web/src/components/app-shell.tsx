@@ -19,9 +19,9 @@ import { usePathname, useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import { useEffect, useState, useSyncExternalStore } from "react";
 
+import { BrandStyle, SidebarBrand } from "@/components/branding";
 import { CommandPalette } from "@/components/command-palette";
 import { HelpPanel } from "@/components/help-panel";
-import { Logo } from "@/components/logo";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -113,7 +113,7 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
     <div className="flex h-full flex-col bg-sidebar px-3 py-4 text-sidebar-foreground">
       <div className="mb-5 px-2">
         <Link href="/dashboard" onClick={onNavigate}>
-          <Logo light />
+          <SidebarBrand />
         </Link>
       </div>
       <OrgSwitcher />
@@ -195,6 +195,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <Menu />
           </Button>
           <div className="flex-1" />
+          <BrandStyle />
           <CommandPalette />
           <Badge variant="outline" className="hidden sm:inline-flex">
             Engine v1.0 · deterministic
