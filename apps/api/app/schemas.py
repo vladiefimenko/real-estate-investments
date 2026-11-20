@@ -317,6 +317,7 @@ class FinancingIn(BaseModel):
     io_period: float = Field(default=0.0, ge=0, le=40)
     fees: dict[str, float] = Field(default_factory=dict)
     covenants: dict[str, float] = Field(default_factory=dict)
+    mezzanine: dict[str, float] | None = None
     preferred_equity: dict[str, float] | None = None
     is_active: bool = False
 

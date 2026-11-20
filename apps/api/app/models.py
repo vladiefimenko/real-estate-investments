@@ -272,6 +272,7 @@ class FinancingStructure(Base, TimestampMixin):
     io_period: Mapped[float] = mapped_column(Float, default=0.0)  # years
     fees: Mapped[dict[str, Any]] = mapped_column(JSONType, default=dict)  # origination_fee_pct, exit_fee_pct
     covenants: Mapped[dict[str, Any]] = mapped_column(JSONType, default=dict)  # min_dscr, max_ltv
+    mezzanine: Mapped[dict[str, Any] | None] = mapped_column(JSONType)  # amount, interest_rate, origination_fee_pct
     preferred_equity: Mapped[dict[str, Any] | None] = mapped_column(JSONType)
     is_active: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 

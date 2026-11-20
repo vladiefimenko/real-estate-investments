@@ -12,7 +12,8 @@ from .underwriting import run_underwriting
 def compare_structures(base: dict[str, Any], structures: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Run the base assumptions once per capital structure.
 
-    Each structure is ``{"name": str, "loan": {...} | None, "preferred_equity": {...} | None}``.
+    Each structure is ``{"name": str, "loan": {...} | None, "mezzanine": {...} | None,
+    "preferred_equity": {...} | None}``.
     An all-cash structure (no loan) is always useful as a reference and can be
     passed with ``loan: None``.
     """
@@ -20,6 +21,7 @@ def compare_structures(base: dict[str, Any], structures: list[dict[str, Any]]) -
     for s in structures:
         scenario = copy.deepcopy(base)
         scenario["loan"] = copy.deepcopy(s.get("loan"))
+        scenario["mezzanine"] = copy.deepcopy(s.get("mezzanine"))
         scenario["preferred_equity"] = copy.deepcopy(s.get("preferred_equity"))
         r = run_underwriting(scenario)
         m = r.metrics
@@ -27,6 +29,7 @@ def compare_structures(base: dict[str, Any], structures: list[dict[str, Any]]) -
             {
                 "name": s.get("name", "Structure"),
                 "loan_amount": m.loan_amount,
+                "mezzanine": r.sources_and_uses.mezzanine_loan,
                 "preferred_equity": r.sources_and_uses.preferred_equity,
                 "equity_invested": m.equity_invested,
                 "ltv": m.ltv,
@@ -40,7 +43,7 @@ def compare_structures(base: dict[str, Any], structures: list[dict[str, Any]]) -
                 "irr_levered": m.irr_levered,
                 "equity_multiple_levered": m.equity_multiple_levered,
                 "npv_levered": m.npv_levered,
-                "balloon_at_exit": r.exit.loan_payoff,
+                "balloon_at_exit": r.exit.loan_payoff + r.exit.mezzanine_payoff,
                 "covenant_breaches": r.covenant_breaches,
                 "warnings": r.warnings,
             }

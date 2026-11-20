@@ -71,6 +71,7 @@ def build_workbook(prop: Any, scenario_name: str, a: dict[str, Any], result: dic
     ref: dict[str, str] = {}
     loan = a.get("loan") or {}
     pref = a.get("preferred_equity") or {}
+    mezz = a.get("mezzanine") or {}
     loan_amount = result["metrics"]["loan_amount"]
     rate = (loan.get("index_rate", 0) + loan.get("spread", 0)) if loan.get("rate_type") == "floating" else \
         loan.get("interest_rate", 0)
@@ -105,6 +106,12 @@ def build_workbook(prop: Any, scenario_name: str, a: dict[str, Any], result: dic
         ("io_years", "Interest-only period (years)", loan.get("io_years", 0) if loan else 0, "0.00"),
         ("orig_fee", "Origination fee (% of loan)", loan.get("origination_fee_pct", 0) if loan else 0, FMT_PCT),
         ("exit_fee", "Exit fee (% of payoff)", loan.get("exit_fee_pct", 0) if loan else 0, FMT_PCT),
+        ("term", "Loan term (years)", loan.get("term_years", 10) if loan else 0, FMT_NUM),
+        ("prepay_pct", "Prepayment penalty (% of payoff, if sold before term)",
+         loan.get("prepayment_penalty_pct", 0) if loan else 0, FMT_PCT),
+        ("mezz_amount", "Mezzanine loan (interest-only)", mezz.get("amount", 0), FMT_USD),
+        ("mezz_rate", "Mezzanine interest rate", mezz.get("interest_rate", 0), FMT_PCT),
+        ("mezz_fee", "Mezzanine origination fee", mezz.get("origination_fee_pct", 0), FMT_PCT),
         ("pref_amount", "Preferred equity", pref.get("amount", 0), FMT_USD),
         ("pref_rate", "Preferred current-pay rate", pref.get("pref_rate", 0), FMT_PCT),
         ("pref_accrual", "Preferred accrual rate (paid at exit)", pref.get("accrual_rate", 0), FMT_PCT),
@@ -267,8 +274,9 @@ def build_workbook(prop: Any, scenario_name: str, a: dict[str, Any], result: dic
          f"={col(y - 1)}{R['capex']}*(1+{ref['capex_growth']})")
     line("cfbd", "Cash flow before debt service", lambda y: f"={col(y)}{R['noi']}-{col(y)}{R['capex']}", bold=True,
          last_year=n)
-    line("ds", "Debt service", lambda y: f"=SUMIF(Debt!$B$6:$B${debt_last},{y},Debt!$F$6:$F${debt_last})",
-         last_year=n)
+    line("ds", "Debt service (senior + mezzanine interest)",
+         lambda y: f"=SUMIF(Debt!$B$6:$B${debt_last},{y},Debt!$F$6:$F${debt_last})"
+                   f"+{ref['mezz_amount']}*{ref['mezz_rate']}", last_year=n)
     line("pref", "Preferred equity distribution", lambda y: f"={ref['pref_amount']}*{ref['pref_rate']}", last_year=n)
     line("btcf", "Before-tax cash flow to common equity",
          lambda y: f"={col(y)}{R['cfbd']}-{col(y)}{R['ds']}-{col(y)}{R['pref']}", bold=True, last_year=n)
@@ -284,36 +292,49 @@ def build_workbook(prop: Any, scenario_name: str, a: dict[str, Any], result: dic
     cf = "'Cash Flow'!"
     fwd = col(n + 1)
     items = [
-        ("Sources & Uses", None, None),
-        ("Purchase price", f"={ref['purchase_price']}", FMT_USD),
-        ("Closing costs", f"={ref['purchase_price']}*{ref['closing_costs_pct']}", FMT_USD),
-        ("Upfront capex", f"={ref['upfront_capex']}", FMT_USD),
-        ("Loan fees", f"={ref['loan_amount']}*{ref['orig_fee']}", FMT_USD),
-        ("Total uses", "=SUM(B7:B10)", FMT_USD),
-        ("Senior loan", f"={ref['loan_amount']}", FMT_USD),
-        ("Preferred equity", f"={ref['pref_amount']}", FMT_USD),
-        ("Common equity", "=B11-B12-B13", FMT_USD),
-        ("Exit (end of year N)", None, None),
-        ("Forward NOI (Year N+1)", f"={cf}{fwd}{R['noi']}", FMT_USD),
-        ("Gross sale price", f"=B16/{ref['exit_cap']}", FMT_USD),
-        ("Selling costs", f"=B17*{ref['selling_pct']}", FMT_USD),
-        ("Net sale proceeds", "=B17-B18", FMT_USD),
-        ("Loan payoff", f"=IF({ref['loan_amount']}=0,0,Debt!G{debt_last})", FMT_USD),
-        ("Loan exit fee", f"=B20*{ref['exit_fee']}", FMT_USD),
-        ("Preferred redemption", f"={ref['pref_amount']}*(1+{ref['pref_accrual']})^{ref['hold']}", FMT_USD),
-        ("Net proceeds to common equity", "=B19-B20-B21-B22", FMT_USD),
+        (None, "Sources & Uses", None, None),
+        ("price", "Purchase price", lambda B: f"={ref['purchase_price']}", FMT_USD),
+        ("closing", "Closing costs", lambda B: f"={ref['purchase_price']}*{ref['closing_costs_pct']}", FMT_USD),
+        ("capex", "Upfront capex", lambda B: f"={ref['upfront_capex']}", FMT_USD),
+        ("fees", "Loan fees",
+         lambda B: f"={ref['loan_amount']}*{ref['orig_fee']}+{ref['mezz_amount']}*{ref['mezz_fee']}", FMT_USD),
+        ("uses", "Total uses", lambda B: f"=SUM({B['price']}:{B['fees']})", FMT_USD),
+        ("senior", "Senior loan", lambda B: f"={ref['loan_amount']}", FMT_USD),
+        ("mezz", "Mezzanine loan", lambda B: f"={ref['mezz_amount']}", FMT_USD),
+        ("pref", "Preferred equity", lambda B: f"={ref['pref_amount']}", FMT_USD),
+        ("common", "Common equity", lambda B: f"={B['uses']}-{B['senior']}-{B['mezz']}-{B['pref']}", FMT_USD),
+        (None, "Exit (end of year N)", None, None),
+        ("fwd_noi", "Forward NOI (Year N+1)", lambda B: f"={cf}{fwd}{R['noi']}", FMT_USD),
+        ("gross", "Gross sale price", lambda B: f"={B['fwd_noi']}/{ref['exit_cap']}", FMT_USD),
+        ("selling", "Selling costs", lambda B: f"={B['gross']}*{ref['selling_pct']}", FMT_USD),
+        ("net_sale", "Net sale proceeds", lambda B: f"={B['gross']}-{B['selling']}", FMT_USD),
+        ("payoff", "Senior loan payoff", lambda B: f"=IF({ref['loan_amount']}=0,0,Debt!G{debt_last})", FMT_USD),
+        ("mezz_payoff", "Mezzanine payoff", lambda B: f"={ref['mezz_amount']}", FMT_USD),
+        ("exit_fee", "Loan exit fee", lambda B: f"={B['payoff']}*{ref['exit_fee']}", FMT_USD),
+        ("prepay", "Prepayment penalty",
+         lambda B: f"=IF({ref['hold']}<{ref['term']},{B['payoff']}*{ref['prepay_pct']},0)", FMT_USD),
+        ("pref_red", "Preferred redemption",
+         lambda B: f"={ref['pref_amount']}*(1+{ref['pref_accrual']})^{ref['hold']}", FMT_USD),
+        ("to_equity", "Net proceeds to common equity",
+         lambda B: f"={B['net_sale']}-{B['payoff']}-{B['mezz_payoff']}-{B['exit_fee']}-{B['prepay']}-{B['pref_red']}",
+         FMT_USD),
     ]
+    B: dict[str, str] = {}
     rr = 5
-    for label, formula, fmt in items:
+    for key, _label, _f, _fmt in items:
+        rr += 1
+        if key:
+            B[key] = f"B{rr}"
+    rr = 5
+    for key, label, formula, fmt in items:
         rr += 1
         if formula is None:
             _section(wr, rr, label, 3)
             continue
         wr.cell(row=rr, column=1, value=label)
-        c = wr.cell(row=rr, column=2, value=formula)
+        c = wr.cell(row=rr, column=2, value=formula(B))
         c.number_format = fmt
-    # rows: 6 header, 7..14 S&U, 15 header, 16..23 exit
-    rr = 26
+    rr += 3
     _section(wr, rr, "Cash flows", n + 2)
     rr += 1
     wr.cell(row=rr, column=1, value="Year").font = Font(bold=True)
@@ -322,12 +343,12 @@ def build_workbook(prop: Any, scenario_name: str, a: dict[str, Any], result: dic
     unlev_row, lev_row = rr + 1, rr + 2
     wr.cell(row=unlev_row, column=1, value="Unlevered cash flow")
     wr.cell(row=lev_row, column=1, value="Levered cash flow (common equity)")
-    wr.cell(row=unlev_row, column=2, value="=-(B7+B8+B9)")
-    wr.cell(row=lev_row, column=2, value="=-B14")
+    wr.cell(row=unlev_row, column=2, value=f"=-({B['price']}+{B['closing']}+{B['capex']})")
+    wr.cell(row=lev_row, column=2, value=f"=-{B['common']}")
     for y in range(1, n + 1):
         cc = col(y)
-        extra_u = "+B19" if y == n else ""
-        extra_l = "+B23" if y == n else ""
+        extra_u = f"+{B['net_sale']}" if y == n else ""
+        extra_l = f"+{B['to_equity']}" if y == n else ""
         wr.cell(row=unlev_row, column=2 + y, value=f"={cf}{cc}{R['cfbd']}{extra_u}")
         wr.cell(row=lev_row, column=2 + y, value=f"={cf}{cc}{R['btcf']}{extra_l}")
     for y in range(0, n + 1):
@@ -342,7 +363,7 @@ def build_workbook(prop: Any, scenario_name: str, a: dict[str, Any], result: dic
     m = result["metrics"]
     metrics = [
         ("NOI (Year 1)", f"={cf}B{R['noi']}", m["noi_year1"], FMT_USD),
-        ("Going-in cap rate", f"={cf}B{R['noi']}/B7", m["going_in_cap_rate"], FMT_PCT),
+        ("Going-in cap rate", f"={cf}B{R['noi']}/{B['price']}", m["going_in_cap_rate"], FMT_PCT),
         ("Unlevered IRR", f"=IRR({u_rng})", m["irr_unlevered"], FMT_PCT),
         ("Levered IRR", f"=IRR({l_rng})", m["irr_levered"], FMT_PCT),
         ("NPV unlevered @ discount rate", f"=B{unlev_row}+NPV({ref['discount_rate']},{u_rng1})",
@@ -350,12 +371,13 @@ def build_workbook(prop: Any, scenario_name: str, a: dict[str, Any], result: dic
         ("NPV levered @ discount rate", f"=B{lev_row}+NPV({ref['discount_rate']},{l_rng1})", m["npv_levered"],
          FMT_USD),
         ("Equity multiple (unlevered)", f"=SUM({u_rng1})/-B{unlev_row}", m["equity_multiple_unlevered"], FMT_X),
-        ("Equity multiple (levered)", f"=SUM({l_rng1})/B14", m["equity_multiple_levered"], FMT_X),
-        ("Cash-on-cash (Year 1)", f"={cf}B{R['btcf']}/B14", m["cash_on_cash_year1"], FMT_PCT),
+        ("Equity multiple (levered)", f"=SUM({l_rng1})/{B['common']}", m["equity_multiple_levered"], FMT_X),
+        ("Cash-on-cash (Year 1)", f"={cf}B{R['btcf']}/{B['common']}", m["cash_on_cash_year1"], FMT_PCT),
         ("DSCR (Year 1)", f"=IFERROR({cf}B{R['noi']}/{cf}B{R['ds']},\"n/a\")", m["dscr_year1"], FMT_X),
-        ("Debt yield (Year 1)", f"=IFERROR({cf}B{R['noi']}/B12,\"n/a\")", m["debt_yield_year1"], FMT_PCT),
-        ("LTV", "=IFERROR(B12/B7,\"n/a\")", m["ltv"], FMT_PCT),
-        ("LTC", "=IFERROR(B12/B11,\"n/a\")", m["ltc"], FMT_PCT),
+        ("Debt yield (Year 1)", f"=IFERROR({cf}B{R['noi']}/({B['senior']}+{B['mezz']}),\"n/a\")",
+         m["debt_yield_year1"], FMT_PCT),
+        ("LTV (combined)", f"=IFERROR(({B['senior']}+{B['mezz']})/{B['price']},\"n/a\")", m["ltv"], FMT_PCT),
+        ("LTC (combined)", f"=IFERROR(({B['senior']}+{B['mezz']})/{B['uses']},\"n/a\")", m["ltc"], FMT_PCT),
     ]
     rr = lev_row + 2
     _section(wr, rr, "Returns – formula vs. Axiom engine (reconciliation)", 4)

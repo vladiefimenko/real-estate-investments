@@ -53,6 +53,7 @@ class SourcesAndUses:
     preferred_equity: float
     common_equity: float
     total_sources: float
+    mezzanine_loan: float = 0.0
 
 
 @dataclass
@@ -67,6 +68,8 @@ class ExitSummary:
     loan_exit_fee: float
     pref_redemption: float
     net_proceeds_to_equity: float
+    mezzanine_payoff: float = 0.0
+    prepayment_penalty: float = 0.0
 
 
 @dataclass
@@ -216,10 +219,13 @@ def run_underwriting(assumptions: Assumptions | dict[str, Any]) -> UnderwritingR
     loan_amount = resolve_loan_amount(a.loan, a.purchase_price) if a.loan else 0.0
     schedule: DebtSchedule | None = build_schedule(a.loan, loan_amount, n) if a.loan and loan_amount > 0 else None
     closing_costs = a.purchase_price * a.closing_costs_pct
+    mezz = a.mezzanine.amount if a.mezzanine else 0.0
+    mezz_interest = mezz * a.mezzanine.interest_rate if a.mezzanine else 0.0  # interest-only
     loan_fees = loan_amount * a.loan.origination_fee_pct if a.loan else 0.0
+    loan_fees += mezz * a.mezzanine.origination_fee_pct if a.mezzanine else 0.0
     total_uses = a.purchase_price + closing_costs + a.upfront_capex + loan_fees
     pref = a.preferred_equity.amount if a.preferred_equity else 0.0
-    common_equity = total_uses - loan_amount - pref
+    common_equity = total_uses - loan_amount - mezz - pref
     if common_equity <= 0:
         raise AssumptionError([{"field": "loan", "message": "Debt and preferred equity exceed total project cost"}])
     su = SourcesAndUses(
@@ -231,7 +237,8 @@ def run_underwriting(assumptions: Assumptions | dict[str, Any]) -> UnderwritingR
         senior_loan=loan_amount,
         preferred_equity=pref,
         common_equity=common_equity,
-        total_sources=loan_amount + pref + common_equity,
+        total_sources=loan_amount + mezz + pref + common_equity,
+        mezzanine_loan=mezz,
     )
     pref_rate = a.preferred_equity.pref_rate if a.preferred_equity else 0.0
     pref_accrual = a.preferred_equity.accrual_rate if a.preferred_equity else 0.0
@@ -241,14 +248,17 @@ def run_underwriting(assumptions: Assumptions | dict[str, Any]) -> UnderwritingR
     covenant_breaches: list[dict[str, Any]] = []
     for row in ops[:n]:
         y = row["year"]
-        ds = schedule.debt_service(y) if schedule else 0.0
-        interest = schedule.years[y - 1].interest if schedule else 0.0
+        senior_ds = schedule.debt_service(y) if schedule else 0.0
+        ds = senior_ds + mezz_interest
+        interest = (schedule.years[y - 1].interest if schedule else 0.0) + mezz_interest
         principal = schedule.years[y - 1].principal if schedule else 0.0
-        balance = schedule.balance_at_end_of(y) if schedule else 0.0
+        balance = (schedule.balance_at_end_of(y) if schedule else 0.0) + mezz
         pref_dist = pref * pref_rate
         btcf = row["cash_flow_before_debt"] - ds - pref_dist
-        dscr = safe_div(row["noi"], ds) if ds else None
-        debt_yield = safe_div(row["noi"], schedule.balance_at_end_of(y - 1)) if schedule else None
+        dscr = safe_div(row["noi"], ds) if ds else None  # combined: all debt service
+        senior_dscr = safe_div(row["noi"], senior_ds) if senior_ds else None
+        opening_debt = (schedule.balance_at_end_of(y - 1) if schedule else 0.0) + mezz
+        debt_yield = safe_div(row["noi"], opening_debt) if opening_debt else None
         annual.append(
             YearCashFlow(
                 **row,
@@ -263,9 +273,9 @@ def run_underwriting(assumptions: Assumptions | dict[str, Any]) -> UnderwritingR
                 cash_on_cash=safe_div(btcf, common_equity),
             )
         )
-        if a.loan and a.loan.min_dscr_covenant and dscr is not None and dscr < a.loan.min_dscr_covenant:
+        if a.loan and a.loan.min_dscr_covenant and senior_dscr is not None and senior_dscr < a.loan.min_dscr_covenant:
             covenant_breaches.append(
-                {"year": y, "covenant": "min_dscr", "threshold": a.loan.min_dscr_covenant, "actual": dscr}
+                {"year": y, "covenant": "min_dscr", "threshold": a.loan.min_dscr_covenant, "actual": senior_dscr}
             )
 
     # --- Exit ------------------------------------------------------------
@@ -275,8 +285,9 @@ def run_underwriting(assumptions: Assumptions | dict[str, Any]) -> UnderwritingR
     net_sale = gross_sale - selling_costs
     payoff = schedule.balance_at_end_of(n) if schedule else 0.0
     exit_fee = payoff * a.loan.exit_fee_pct if a.loan else 0.0
+    prepay = payoff * a.loan.prepayment_penalty_pct if a.loan and n < a.loan.term_years else 0.0
     pref_redemption = pref * (1.0 + pref_accrual) ** n if pref else 0.0
-    to_equity = net_sale - payoff - exit_fee - pref_redemption
+    to_equity = net_sale - payoff - mezz - exit_fee - prepay - pref_redemption
     exit_summary = ExitSummary(
         exit_year=n,
         forward_noi=forward_noi,
@@ -288,6 +299,8 @@ def run_underwriting(assumptions: Assumptions | dict[str, Any]) -> UnderwritingR
         loan_exit_fee=exit_fee,
         pref_redemption=pref_redemption,
         net_proceeds_to_equity=to_equity,
+        mezzanine_payoff=mezz,
+        prepayment_penalty=prepay,
     )
     if a.loan and a.loan.max_ltv_covenant and loan_amount:
         ltv_at_exit = safe_div(payoff, gross_sale)
@@ -328,8 +341,8 @@ def run_underwriting(assumptions: Assumptions | dict[str, Any]) -> UnderwritingR
         dscr_year1=y1.dscr,
         min_dscr=min((r.dscr for r in annual if r.dscr is not None), default=None),
         debt_yield_year1=y1.debt_yield,
-        ltv=safe_div(loan_amount, a.purchase_price) if loan_amount else None,
-        ltc=safe_div(loan_amount, total_uses) if loan_amount else None,
+        ltv=safe_div(loan_amount + mezz, a.purchase_price) if loan_amount + mezz else None,  # combined
+        ltc=safe_div(loan_amount + mezz, total_uses) if loan_amount + mezz else None,
         loan_amount=loan_amount,
         equity_invested=common_equity,
         total_project_cost=total_uses,
