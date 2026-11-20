@@ -24,6 +24,8 @@ dependencies = [
   "reportlab>=4.0",
   "pdfplumber>=0.11",
   "pypdfium2>=4.0",
+  "pypdf>=4.0",  # data room watermarks
+  "pillow>=10.0",  # branding logos (also pulled in by pdfplumber; listed so it can't silently disappear)
   "anthropic>=1.0",
   "httpx>=0.27",
 ]
