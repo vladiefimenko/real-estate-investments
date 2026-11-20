@@ -524,5 +524,36 @@ CREATE POLICY tenant_isolation ON deal_shares USING (org_id = NULLIF(current_set
 
 UPDATE alembic_version SET version_num='0007' WHERE alembic_version.version_num = '0006';
 
+-- Running upgrade 0007 -> 0008
+
+CREATE TABLE ic_votes (
+    id UUID NOT NULL, 
+    org_id UUID NOT NULL, 
+    property_id UUID NOT NULL, 
+    round INTEGER NOT NULL, 
+    user_id UUID NOT NULL, 
+    vote VARCHAR(20) NOT NULL, 
+    comment TEXT, 
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL, 
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL, 
+    PRIMARY KEY (id), 
+    FOREIGN KEY(org_id) REFERENCES organizations (id) ON DELETE CASCADE, 
+    FOREIGN KEY(property_id) REFERENCES properties (id) ON DELETE CASCADE, 
+    FOREIGN KEY(user_id) REFERENCES users (id) ON DELETE CASCADE, 
+    CONSTRAINT uq_ic_vote UNIQUE (property_id, round, user_id)
+);
+
+CREATE INDEX ix_ic_votes_org_id ON ic_votes (org_id);
+
+CREATE INDEX ix_ic_votes_property_id ON ic_votes (property_id);
+
+ALTER TABLE ic_votes ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE ic_votes FORCE ROW LEVEL SECURITY;
+
+CREATE POLICY tenant_isolation ON ic_votes USING (org_id = NULLIF(current_setting('app.current_org_id', true), '')::uuid) WITH CHECK (org_id = NULLIF(current_setting('app.current_org_id', true), '')::uuid);
+
+UPDATE alembic_version SET version_num='0008' WHERE alembic_version.version_num = '0007';
+
 COMMIT;
 

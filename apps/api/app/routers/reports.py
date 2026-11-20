@@ -78,8 +78,11 @@ def export_ic_memo(property_id: uuid.UUID, scenario_id: uuid.UUID | None = None,
         context = build_context(ctx, prop, sc, result, scenarios)
         narrative = {"executive_summary": ai.draft_narrative(context, "Executive Summary and Investment Thesis"),
                      "risks": ai.draft_narrative(context, "Key Risks and Mitigants")}
+    from .workflow import _ic_view
+
     data = ic_memo(prop, sc.name, result, scenarios, _irr_sensitivity(sc.assumptions_json),
-                   verified_fields(ctx, prop), narrative)
+                   verified_fields(ctx, prop), narrative,
+                   ic=None if ctx.is_external else _ic_view(ctx, prop))  # internal deliberations stay internal
     ctx.audit("report.ic_memo", "property", prop.id, property_id=prop.id, scenario=sc.name,
               ai_narrative=bool(narrative))
     ctx.db.commit()

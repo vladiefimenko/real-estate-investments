@@ -365,6 +365,20 @@ class DealShare(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
 
 
+class IcVote(Base, TimestampMixin):
+    """One member's Investment Committee vote on a deal for one IC round (changeable until decided)."""
+
+    __tablename__ = "ic_votes"
+    __table_args__ = (UniqueConstraint("property_id", "round", "user_id", name="uq_ic_vote"),)
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=new_id)
+    org_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("organizations.id", ondelete="CASCADE"), index=True)
+    property_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("properties.id", ondelete="CASCADE"), index=True)
+    round: Mapped[int] = mapped_column(Integer, nullable=False)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    vote: Mapped[str] = mapped_column(String(20), nullable=False)
+    comment: Mapped[str | None] = mapped_column(Text)
+
+
 class StoredObject(Base):
     """Encrypted file contents for the ``database`` storage backend.
 
@@ -382,6 +396,7 @@ class StoredObject(Base):
 # Tables protected by Postgres RLS (see alembic migration 0001).
 RLS_TABLES = (
     "assumption_libraries",
+    "ic_votes",
     "deal_shares",
     "webhooks",
     "properties",

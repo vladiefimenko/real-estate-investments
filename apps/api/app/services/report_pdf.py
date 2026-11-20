@@ -290,7 +290,7 @@ def _executive_summary(prop: Any, r: dict[str, Any]) -> str:
 
 def ic_memo(prop: Any, scenario_name: str, r: dict[str, Any], scenarios: list[dict[str, Any]],
             sensitivity: dict[str, Any] | None, verified: list[dict[str, Any]],
-            narrative: dict[str, str] | None = None) -> bytes:
+            narrative: dict[str, str] | None = None, ic: dict[str, Any] | None = None) -> bytes:
     buf = io.BytesIO()
     doc = SimpleDocTemplate(buf, pagesize=LETTER, leftMargin=0.6 * inch, rightMargin=0.6 * inch,
                             topMargin=0.7 * inch, bottomMargin=0.6 * inch, title=f"{prop.name} – IC Memorandum",
@@ -395,6 +395,24 @@ def ic_memo(prop: Any, scenario_name: str, r: dict[str, Any], scenarios: list[di
     else:
         story.append(Paragraph("No document-verified fields; assumptions are user-entered or template defaults.",
                                S["body"]))
+    if ic and (ic.get("votes") or ic.get("decision")):
+        story.append(Paragraph(f"Investment Committee (round {ic.get('round') or 1})", S["h2"]))
+        dec = ic.get("decision")
+        if dec:
+            story.append(Paragraph(
+                f"<b>Decision: {_esc(dec['decision'].title())}</b> · recorded by {_esc(dec.get('by') or '')} on "
+                f"{_esc(str(dec.get('at', ''))[:10])}", S["body"]))
+            if dec.get("notes"):
+                story.append(Paragraph(_esc(dec["notes"]).replace("\n", "<br/>"), S["body"]))
+        else:
+            story.append(Paragraph("<b>Decision pending.</b> Votes recorded so far:", S["body"]))
+        if ic.get("votes"):
+            rows = [["Member", "Vote", "Comment"]] + [[v["name"], v["vote"].title(),
+                                                      Paragraph(_esc(v.get("comment") or ""), S["small"])]
+                                                     for v in ic["votes"]]
+            t = _table(rows, [1.8 * inch, 1.0 * inch, 4.5 * inch])
+            t.setStyle(TableStyle([("ALIGN", (0, 0), (-1, -1), "LEFT"), ("VALIGN", (0, 0), (-1, -1), "TOP")]))
+            story.append(t)
     story.append(Paragraph("Appendix – Calculation Audit Trace", S["h2"]))
     trace = [["Metric", "Formula", "Value"]]
     for t in r.get("audit_trace", []):

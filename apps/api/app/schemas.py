@@ -197,6 +197,8 @@ class PropertyUpdate(BaseModel):
     attributes: dict[str, Any] | None = None
     owner_id: uuid.UUID | None = None
     valuation_inputs: dict[str, Any] | None = None
+    # Admins only: move to a stage even if the workspace's stage requirements aren't met (audited).
+    override_requirements: bool = False
 
     @field_validator("status")
     @classmethod

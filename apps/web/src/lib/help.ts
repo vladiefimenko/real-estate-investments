@@ -150,7 +150,8 @@ export const HELP: { pattern: RegExp; topic: HelpTopic }[] = [
       steps: [
         "Hover any ⓘ icon to learn what a number means.",
         "Click a flag in the Risk screen to see why it was raised and what to check.",
-        "Change the Stage as the deal moves through your pipeline.",
+        "Change the Stage as the deal moves through your pipeline; your workspace may require some steps first.",
+        "At Investment Committee, members vote here and an admin records the decision, which goes into the IC memo.",
         "Typical order: Documents → Underwriting → Scenarios & Risk → Reports.",
       ],
       terms: ["noi", "cap-rate", "irr", "equity-multiple", "dscr", "risk-score"],
@@ -213,6 +214,7 @@ export const HELP: { pattern: RegExp; topic: HelpTopic }[] = [
         "Usage shows active users and activity for licensing; API keys give other systems read-only access to deals.",
         "Webhooks notify another system (a CRM, Slack workflow or data pipeline) when deals change stage or reports are generated.",
         "In Audit log, export the full history as CSV or JSON for compliance reviews.",
+        "Workflow sets what must be done before a deal moves to Underwriting, IC or Closed.",
       ],
     },
   },

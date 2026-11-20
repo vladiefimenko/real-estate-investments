@@ -4,18 +4,21 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ChevronLeft, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useParams, usePathname, useRouter } from "next/navigation";
+import { useState } from "react";
 import { toast } from "sonner";
 
 import { Callout, ErrorBlock, LoadingBlock, StatusBadge } from "@/components/common";
 import { DealContext } from "@/components/deal-context";
 import { ShareDeal } from "@/components/share-deal";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent } from "@/components/ui/overlays";
 import { Badge, Select } from "@/components/ui/primitives";
 import { useFeatures, useOrgKey, useProperty, useScenarios } from "@/hooks/queries";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { STATUS_LABELS, STATUSES, stripDemo, TYPE_LABELS } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { gateError, type GateError } from "@/lib/workflow";
 
 // Tabs an external member (lender/partner) can open; the others call endpoints they can't use.
 const EXTERNAL_TABS = new Set(["", "documents", "scenarios", "financing", "valuation", "reports"]);
@@ -47,13 +50,20 @@ export default function DealLayout({ children }: { children: React.ReactNode }) 
   const canEdit = hasRole("analyst");
   const canDelete = hasRole("admin");
 
+  const [gate, setGate] = useState<{ status: string; error: GateError } | null>(null);
   const setStatus = useMutation({
-    mutationFn: (status: string) => api(`/api/properties/${id}`, { method: "PATCH", body: { status } }),
+    mutationFn: ({ status, override = false }: { status: string; override?: boolean }) =>
+      api(`/api/properties/${id}`, { method: "PATCH", body: { status, override_requirements: override } }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: [org] });
+      setGate(null);
       toast.success("Status updated");
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e, v) => {
+      const g = gateError(e);
+      if (g) setGate({ status: v.status, error: g });
+      else toast.error(e.message);
+    },
   });
 
   const deleteDeal = useMutation({
@@ -101,7 +111,7 @@ export default function DealLayout({ children }: { children: React.ReactNode }) 
               <Select
                 id="deal-status"
                 value={p.status}
-                onChange={(e) => setStatus.mutate(e.target.value)}
+                onChange={(e) => setStatus.mutate({ status: e.target.value })}
                 className="w-48"
                 disabled={setStatus.isPending}
               >
@@ -135,6 +145,26 @@ export default function DealLayout({ children }: { children: React.ReactNode }) 
             Fictional sample deal for demonstration purposes only. All figures are illustrative and every export is watermarked.
           </Callout>
         )}
+        <Dialog open={!!gate} onOpenChange={(o) => !o && setGate(null)}>
+          <DialogContent title={`Not ready for ${gate ? STATUS_LABELS[gate.status] : ""}`} description="Your workspace requires these before a deal can move to this stage:">
+            <ul className="list-disc space-y-1 pl-5 text-sm">
+              {gate?.error.unmet.map((u) => (
+                <li key={u}>{u}</li>
+              ))}
+            </ul>
+            <p className="text-xs text-muted-foreground">Requirements are set by admins in Settings → Workflow.</p>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setGate(null)}>
+                Cancel
+              </Button>
+              {gate?.error.canOverride && (
+                <Button variant="destructive" loading={setStatus.isPending} onClick={() => gate && setStatus.mutate({ status: gate.status, override: true })}>
+                  Move anyway (logged)
+                </Button>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
         <nav className="mt-4 flex gap-1 overflow-x-auto border-b" aria-label="Deal sections">
           {TABS.filter((t) => (!t.feature || features.data?.[t.feature]?.enabled !== false) && (!isExternal || EXTERNAL_TABS.has(t.slug))).map((t) => {
             const active = current === t.slug;

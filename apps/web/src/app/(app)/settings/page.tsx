@@ -1,13 +1,14 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { BarChart3, Building2, Check, Copy, CreditCard, Flag, History, KeyRound, Mail, Plus, Search, Trash2, Users, Webhook } from "lucide-react";
+import { BarChart3, Building2, Check, Copy, CreditCard, Flag, History, KeyRound, Mail, Plus, Search, Trash2, Users, Webhook, Workflow } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { Callout, EmptyState, ErrorBlock, LoadingBlock, PageHeader } from "@/components/common";
 import { ApiKeysTab, AuditExport, UsageTab, WebhooksTab } from "@/components/enterprise-settings";
+import { WorkflowTab } from "@/components/workflow-settings";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, Switch, Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/overlays";
 import {
@@ -97,7 +98,7 @@ const ROLE_LABELS: Record<Role, string> = {
 };
 const RANK: Record<Role, number> = { external: -1, viewer: 0, auditor: 0, analyst: 1, admin: 2, owner: 3 };
 const PLAN_ORDER = ["starter", "professional", "enterprise"];
-const TAB_KEYS = ["organization", "members", "billing", "features", "audit", "usage", "api-keys", "webhooks"] as const;
+const TAB_KEYS = ["organization", "members", "billing", "features", "audit", "usage", "api-keys", "webhooks", "workflow"] as const;
 type TabKey = (typeof TAB_KEYS)[number];
 
 function shortDate(iso: string | null | undefined): string {
@@ -182,6 +183,9 @@ function SettingsInner() {
             <TabsTrigger value="features">
               <Flag className="size-3.5" /> Features
             </TabsTrigger>
+            <TabsTrigger value="workflow">
+              <Workflow className="size-3.5" /> Workflow
+            </TabsTrigger>
             <TabsTrigger value="audit">
               <History className="size-3.5" /> Audit log
             </TabsTrigger>
@@ -207,6 +211,9 @@ function SettingsInner() {
         </TabsContent>
         <TabsContent value="features" className="rounded-md focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring">
           <FeaturesTab />
+        </TabsContent>
+        <TabsContent value="workflow" className="rounded-md focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring">
+          <WorkflowTab />
         </TabsContent>
         <TabsContent value="audit" className="rounded-md focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring">
           <AuditTab />

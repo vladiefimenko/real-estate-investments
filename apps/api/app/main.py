@@ -25,6 +25,7 @@ from .routers import (
     reports,
     scenarios,
     webhooks,
+    workflow,
 )
 
 
@@ -109,7 +110,7 @@ def create_app() -> FastAPI:
         return {"status": "ok", "engine_version": ENGINE_VERSION, "ai_available": ai_available()}
 
     for r in (auth.router, orgs.router, properties.router, scenarios.router, analysis.router, documents.router,
-              reports.router, libraries.router, enterprise.router, webhooks.router):
+              reports.router, libraries.router, enterprise.router, webhooks.router, workflow.router):
         app.include_router(r, prefix="/api")
     return app
 
