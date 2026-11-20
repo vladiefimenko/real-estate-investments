@@ -22,6 +22,7 @@ from ..schemas import (
     PageOut,
 )
 from ..security import verify_signed
+from ..services.doc_compare import compare as compare_docs
 from ..services.extraction import process_document
 from ..services.extraction_fields import FIELDS, apply_to_assumptions, coerce
 from ..services.parsing import ALLOWED_TYPES, PDF_TYPES, render_page_png, sniff_mime
@@ -88,6 +89,19 @@ def list_documents(property_id: uuid.UUID, ctx: OrgContext = Depends(deal_reader
 @router.get("/documents/{document_id}", response_model=DocumentOut)
 def get_document(document_id: uuid.UUID, ctx: OrgContext = Depends(deal_reader)):
     return _doc(ctx, document_id)
+
+
+@router.get("/documents/{document_id}/compare")
+def compare_documents(document_id: uuid.UUID, other: uuid.UUID, ctx: OrgContext = Depends(deal_reader)):
+    """What changed between two documents of the same deal. The older upload is treated as "before"."""
+    a, b = _doc(ctx, document_id), _doc(ctx, other)
+    if a.id == b.id:
+        raise HTTPException(422, "Choose two different documents")
+    if a.property_id != b.property_id:
+        raise HTTPException(422, "Both documents must belong to the same deal")
+    older, newer = sorted((a, b), key=lambda d: (d.created_at, str(d.id)))
+    out = DocumentOut.model_validate
+    return {"before": out(older), "after": out(newer), **compare_docs(ctx.db, older, newer)}
 
 
 @router.post("/documents/{document_id}/extract", response_model=DocumentOut)

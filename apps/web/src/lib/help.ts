@@ -38,6 +38,7 @@ export const HELP: { pattern: RegExp; topic: HelpTopic }[] = [
         "Wait for the status to show it's been extracted, then click Review.",
         "Accept, edit or reject each proposed value.",
         "Click 'Apply verified data to base case' to update the model with what you verified.",
+        "Got a newer rent roll or T12? Upload it, then click Compare versions to see exactly which numbers changed.",
       ],
       terms: ["om", "t12", "rent-roll", "verification"],
     },
