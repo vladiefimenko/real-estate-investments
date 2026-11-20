@@ -6,6 +6,7 @@ import {
   Building2,
   CornerDownLeft,
   FileText,
+  Gauge,
   GitCompareArrows,
   Keyboard,
   LayoutDashboard,
@@ -133,11 +134,12 @@ export function CommandPalette() {
       ["/dashboard", "Dashboard", LayoutDashboard, "G D"],
       ["/deals", "Deals", Building2, "G L"],
       ["/compare", "Compare deals", GitCompareArrows, "G C"],
+      ["/scorecard", "Pipeline scorecard", Gauge, ""],
       ["/glossary", "Glossary", BookOpen, "G G"],
       ["/settings", "Settings", Settings, "G S"],
     ];
     for (const [href, label, icon, hint] of nav)
-      if (!external || href === "/deals" || href === "/glossary") out.push({ id: href, group: "Go to", label, hint, icon, run: go(href) });
+      if (!external || href === "/deals" || href === "/glossary") out.push({ id: href, group: "Go to", label, hint: hint || undefined, icon, run: go(href) });
     for (const d of deals.data ?? [])
       out.push({
         id: `deal-${d.id}`,
