@@ -7,7 +7,7 @@ from typing import Any
 from sqlalchemy import select
 
 from ..deps import OrgContext
-from ..models import Document, ExtractedData, Property, Scenario
+from ..models import AuditLog, Document, ExtractedData, Property, Scenario, User
 from .report_pdf import mult, pct, usd
 
 TRACE_KEYS = ("metric", "formula", "value")
@@ -22,6 +22,137 @@ def verified_fields(ctx: OrgContext, prop: Property) -> list[dict[str, Any]]:
     return [{"field_path": e.field_path, "label": e.label, "value": e.value, "status": e.status,
              "document": name, "source_page": e.source_page, "source_ref": e.source_ref,
              "source_excerpt": e.source_excerpt} for e, name in rows]
+
+
+DOC_TYPE_LABELS = {"om": "Offering memorandum", "t12": "T12 operating statement", "rent_roll": "Rent roll",
+                   "appraisal": "Appraisal", "loan_doc": "Loan document", "model": "Financial model",
+                   "image": "Image", "other": "Other document"}
+
+
+def _day(t: Any) -> str:
+    return f"{t:%b} {t.day}, {t.year}"
+
+
+def document_changes(ctx: OrgContext, prop: Property) -> list[dict[str, Any]]:
+    """For each document type with two or more processed versions, what changed from the previous one."""
+    from .doc_compare import compare
+
+    docs = ctx.db.scalars(select(Document).where(Document.property_id == prop.id, Document.deleted_at.is_(None),
+                                                 Document.status == "extracted")
+                          .order_by(Document.created_at, Document.id)).all()
+    by_type: dict[str, list[Document]] = {}
+    for d in docs:
+        by_type.setdefault(d.type, []).append(d)
+    out = []
+    for dtype, versions in by_type.items():
+        if len(versions) < 2:
+            continue
+        older, newer = versions[-2], versions[-1]
+        diff = compare(ctx.db, older, newer)
+        rows = [{k: r[k] for k in ("label", "kind", "before", "after", "change", "delta", "delta_pct")}
+                for r in diff["rows"] if r["change"] != "same"]
+        out.append({"document_type": DOC_TYPE_LABELS.get(dtype, dtype), "before_document": older.name,
+                    "before_uploaded": _day(older.created_at), "after_document": newer.name,
+                    "after_uploaded": _day(newer.created_at), "counts": diff["counts"],
+                    "changes": rows})
+    return out
+
+
+CHANGE_ACTIONS = ("scenario.update", "extraction.apply", "property.update")
+
+
+def recent_changes(ctx: OrgContext, prop: Property, limit: int = 12) -> list[dict[str, Any]]:
+    """Recent edits to this deal's assumptions and facts, from the audit trail (newest first)."""
+    rows = ctx.db.execute(
+        select(AuditLog, User.name).outerjoin(User, User.id == AuditLog.user_id)
+        .where(AuditLog.org_id == ctx.org.id, AuditLog.property_id == prop.id, AuditLog.action.in_(CHANGE_ACTIONS))
+        .order_by(AuditLog.created_at.desc()).limit(limit * 3)
+    ).all()
+    out = []
+    for a, who in rows:
+        changes = (a.details or {}).get("changes") or {}
+        simple = {k: v for k, v in changes.items() if isinstance(v, dict) and not isinstance(v.get("after"), (list, dict))
+                  and not isinstance(v.get("before"), (list, dict))}
+        if not simple:
+            continue
+        out.append({"when": _day(a.created_at), "who": who or "System",
+                    "source": "verified document data" if a.action == "extraction.apply" else "manual edit",
+                    "changes": simple})
+        if len(out) >= limit:
+            break
+    return out
+
+
+def _fmt_doc(kind: str, v: Any) -> str:
+    if v is None:
+        return "—"
+    if kind == "currency" and isinstance(v, (int, float)):
+        return usd(v)
+    if kind == "percent" and isinstance(v, (int, float)):
+        return pct(v)
+    if kind == "unit_mix" and isinstance(v, list):
+        return f"{len(v)} unit types"
+    if isinstance(v, float):
+        return f"{v:,.2f}"
+    if isinstance(v, int):
+        return f"{v:,}"
+    return str(v)
+
+
+def _fmt_assumption(key: str, v: Any) -> str:
+    if isinstance(v, bool) or v is None:
+        return str(v)
+    if isinstance(v, (int, float)):
+        if any(t in key for t in ("rate", "growth", "pct", "ltv", "vacancy", "loss")) and abs(v) < 1:
+            return pct(v)
+        if abs(v) >= 1000:
+            return usd(v)
+        return f"{v:,}"
+    return str(v)
+
+
+def _changes_answer(context: dict[str, Any]) -> str:
+    parts = []
+    docs = context.get("document_changes") or []
+    if docs:
+        for d in docs:
+            c = d["counts"]
+            head = (f"**{d['document_type']}: what changed** from *{d['before_document']}* ({d['before_uploaded']}) "
+                    f"to *{d['after_document']}* ({d['after_uploaded']}): {c['changed']} changed, {c['added']} new, "
+                    f"{c['removed']} missing.")
+            ranked = sorted(d["changes"], key=lambda r: -(abs(r["delta_pct"]) if r["delta_pct"] is not None else 0))
+            lines = []
+            for r in ranked[:10]:
+                if r["change"] == "added":
+                    lines.append(f"- {r['label']}: new, {_fmt_doc(r['kind'], r['after'])}")
+                elif r["change"] == "removed":
+                    lines.append(f"- {r['label']}: no longer in the newer version (was {_fmt_doc(r['kind'], r['before'])})")
+                else:
+                    move = ""
+                    if r["delta"] is not None:
+                        sign = "+" if r["delta"] > 0 else "−"
+                        amt = usd(abs(r["delta"])) if r["kind"] == "currency" else (
+                            f"{abs(r['delta']) * 100:.2f} pts" if r["kind"] == "percent" else f"{abs(r['delta']):,}")
+                        rel = f", {sign}{abs(r['delta_pct']) * 100:.1f}%" if r["delta_pct"] is not None and r["kind"] != "percent" else ""
+                        move = f" ({sign}{amt}{rel})"
+                    lines.append(f"- {r['label']}: {_fmt_doc(r['kind'], r['before'])} → {_fmt_doc(r['kind'], r['after'])}{move}")
+            parts.append(head + ("\n" + "\n".join(lines) if lines else "\n- Every extracted value matches."))
+        parts.append("Review any changed values in Documents before applying them: only verified values enter the model.")
+    else:
+        parts.append("**Document versions.** Only one processed version of each document type is on this deal, so there's "
+                     "nothing to compare yet. Upload the newer rent roll, T12 or OM and I'll show what changed.")
+    recent = context.get("recent_assumption_changes") or []
+    if recent:
+        lines = []
+        for r in recent[:8]:
+            edits = ", ".join(f"{k.replace('_', ' ')} {_fmt_assumption(k, v.get('before'))} → {_fmt_assumption(k, v.get('after'))}"
+                              for k, v in list(r["changes"].items())[:4])
+            lines.append(f"- {r['when']}, {r['who']} ({r['source']}): {edits}")
+        parts.append("**Recent assumption changes** (from the activity log):\n" + "\n".join(lines))
+    return "\n\n".join(parts)
+
+
+CHANGE_WORDS = ("what changed", "changed", "change", "differ", "difference", "new version", "newer", "v2", "updated")
 
 
 def build_context(ctx: OrgContext, prop: Property, scenario: Scenario, result: dict[str, Any],
@@ -44,6 +175,8 @@ def build_context(ctx: OrgContext, prop: Property, scenario: Scenario, result: d
         "covenant_breaches": result.get("covenant_breaches"),
         "audit_trace": [{k: t.get(k) for k in TRACE_KEYS} for t in result.get("audit_trace", [])],
         "verified_document_data": verified_fields(ctx, prop),
+        "document_changes": document_changes(ctx, prop),
+        "recent_assumption_changes": recent_changes(ctx, prop),
         "other_scenarios": scenarios or [],
         "engine_version": result["engine_version"],
     }
@@ -122,6 +255,8 @@ def rules_answer(context: dict[str, Any], question: str, learning: bool = False,
     prefs = prefs or {}
     flag = _dscr_flag(m, prefs.get("dscr_floor"))
     stress = prefs.get("exit_cap_stress_bps")
+    if any(w in q for w in CHANGE_WORDS):
+        parts.append(_changes_answer(context))
     if "irr" in q or "return" in q:
         parts.append(
             f"**Returns.** Levered IRR is **{pct(m['irr_levered'])}** and unlevered IRR is "
