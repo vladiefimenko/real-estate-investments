@@ -433,7 +433,7 @@ def ic_memo(prop: Any, scenario_name: str, r: dict[str, Any], scenarios: list[di
     else:
         story.append(Paragraph("No document-verified fields; assumptions are user-entered or template defaults.",
                                S["body"]))
-    if ic and (ic.get("votes") or ic.get("decision")):
+    if ic and (ic.get("votes") or ic.get("decision") or ic.get("chain")):
         story.append(Paragraph(f"Investment Committee (round {ic.get('round') or 1})", S["h2"]))
         dec = ic.get("decision")
         if dec:
@@ -448,6 +448,19 @@ def ic_memo(prop: Any, scenario_name: str, r: dict[str, Any], scenarios: list[di
             rows = [["Member", "Vote", "Comment"]] + [[v["name"], v["vote"].title(),
                                                       Paragraph(_esc(v.get("comment") or ""), S["small"])]
                                                      for v in ic["votes"]]
+            t = _table(rows, [1.8 * inch, 1.0 * inch, 4.5 * inch])
+            t.setStyle(TableStyle([("ALIGN", (0, 0), (-1, -1), "LEFT"), ("VALIGN", (0, 0), (-1, -1), "TOP")]))
+            story.append(t)
+        if ic.get("chain"):
+            story.append(Spacer(1, 6))
+            story.append(Paragraph(f"<b>Approval chain:</b> {_esc(ic.get('chain_status') or 'pending')}", S["body"]))
+            rows = [["Step", "Status", "Sign-offs"]]
+            for i, st in enumerate(ic["chain"], 1):
+                signs = "; ".join(f"{a['name']} {'approved' if a['action'] == 'approve' else 'declined'} "
+                                  f"{str(a.get('at', ''))[:10]}" + (f": {a['comment']}" if a.get("comment") else "")
+                                  for a in st.get("actions") or []) or "Waiting on " + ", ".join(st.get("approver_names") or [])
+                rows.append([Paragraph(_esc(f"{i}. {st['name']}"), S["small"]), st["status"].title(),
+                             Paragraph(_esc(signs), S["small"])])
             t = _table(rows, [1.8 * inch, 1.0 * inch, 4.5 * inch])
             t.setStyle(TableStyle([("ALIGN", (0, 0), (-1, -1), "LEFT"), ("VALIGN", (0, 0), (-1, -1), "TOP")]))
             story.append(t)

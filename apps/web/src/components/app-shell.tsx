@@ -24,6 +24,7 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 import { BrandStyle, SidebarBrand } from "@/components/branding";
 import { CommandPalette } from "@/components/command-palette";
 import { HelpPanel } from "@/components/help-panel";
+import { NotificationBell } from "@/components/notification-bell";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -204,6 +205,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <Badge variant="outline" className="hidden sm:inline-flex">
             Engine v1.0 · deterministic
           </Badge>
+          <NotificationBell />
           <HelpPanel />
           <ThemeToggle />
           <DropdownMenu>

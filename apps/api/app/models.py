@@ -395,6 +395,23 @@ class IcVote(Base, TimestampMixin):
     comment: Mapped[str | None] = mapped_column(Text)
 
 
+class Notification(Base):
+    """An in-app notification for one member of one workspace."""
+
+    __tablename__ = "notifications"
+    __table_args__ = (Index("ix_notifications_user_created", "user_id", "created_at"),)
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=new_id)
+    org_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("organizations.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    kind: Mapped[str] = mapped_column(String(40), nullable=False)
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    body: Mapped[str | None] = mapped_column(Text)
+    link: Mapped[str | None] = mapped_column(String(300))
+    property_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
 class StoredObject(Base):
     """Encrypted file contents for the ``database`` storage backend.
 

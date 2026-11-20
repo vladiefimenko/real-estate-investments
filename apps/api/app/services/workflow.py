@@ -55,6 +55,45 @@ def ic_state(prop: Property) -> dict[str, Any]:
     return (prop.attributes or {}).get("ic") or {}
 
 
+def org_chain(ctx: OrgContext) -> list[dict[str, Any]]:
+    """The workspace's IC approval chain: ordered steps of {name, approvers: [user ids], min_approvals}."""
+    return list((ctx.org.settings or {}).get("approval_chain") or [])
+
+
+def chain_status(state: dict[str, Any]) -> str | None:
+    chain = state.get("chain")
+    if not chain:
+        return None
+    if any(st["status"] == "declined" for st in chain):
+        return "declined"
+    return "approved" if all(st["status"] == "approved" for st in chain) else "pending"
+
+
+def current_step(state: dict[str, Any]) -> int | None:
+    for i, st in enumerate(state.get("chain") or []):
+        if st["status"] == "pending":
+            return i
+    return None
+
+
+def deal_link(prop: Property) -> str:
+    return f"/deals/{prop.id}"
+
+
+def notify_ic_start(ctx: OrgContext, prop: Property, state: dict[str, Any]) -> None:
+    from .notify import admins, notify
+
+    chain = state.get("chain")
+    if chain:
+        first = chain[0]
+        notify(ctx, first["approvers"], "ic.approval_requested", f"Your approval is needed: {prop.name}",
+               f"Step 1 of {len(chain)} ({first['name']}) of the Investment Committee approval chain.",
+               deal_link(prop), prop.id)
+    else:
+        notify(ctx, admins(ctx), "ic.started", f"{prop.name} is at Investment Committee",
+               "Members can vote now; an admin records the decision.", deal_link(prop), prop.id)
+
+
 def change_status(ctx: OrgContext, prop: Property, new: str, *, override: bool = False, bulk: bool = False) -> bool:
     """Move a deal to ``new``, enforcing the workspace's stage requirements.
 
@@ -70,10 +109,16 @@ def change_status(ctx: OrgContext, prop: Property, new: str, *, override: bool =
     before = prop.status
     prop.status = new
     prop.updated_by = ctx.user.id
-    if new == "ic":  # entering IC starts a fresh voting round
+    if new == "ic":  # entering IC starts a fresh voting round, with a snapshot of the approval chain
         state = ic_state(prop)
-        prop.attributes = {**(prop.attributes or {}),
-                           "ic": {"round": int(state.get("round", 0)) + 1, "decision": None}}
+        fresh: dict[str, Any] = {"round": int(state.get("round", 0)) + 1, "decision": None}
+        chain = org_chain(ctx)
+        if chain:
+            fresh["chain"] = [{"name": st["name"], "approvers": list(st["approvers"]),
+                               "min_approvals": int(st["min_approvals"]), "status": "pending", "actions": []}
+                              for st in chain]
+        prop.attributes = {**(prop.attributes or {}), "ic": fresh}
+        notify_ic_start(ctx, prop, fresh)
     details: dict[str, Any] = {"changes": {"status": {"before": before, "after": new}}}
     if bulk:
         details["bulk"] = True
