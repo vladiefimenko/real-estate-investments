@@ -191,6 +191,32 @@ export const GLOSSARY: GlossaryEntry[] = [
       "Money invested between the loan and the common equity. It is paid a set return before common investors receive anything, and is repaid ahead of them.",
   },
   {
+    id: "waterfall",
+    term: "Waterfall (profit split)",
+    aka: ["distribution waterfall", "LP/GP split"],
+    category: "Returns",
+    definition:
+      "The order in which a deal's cash is paid out to the investors (LP) and the sponsor (GP). Investors first get their money back plus a preferred return; above that, the sponsor earns a bigger share as a reward for performance.",
+    typical: "A common structure: 8% preferred return, then 80/20 to a 12% investor IRR, then 70/30.",
+  },
+  {
+    id: "preferred-return",
+    term: "Preferred return",
+    aka: ["pref", "hurdle"],
+    category: "Returns",
+    definition:
+      "The return investors must receive, on top of getting their money back, before the sponsor earns any extra share of the profits.",
+    typical: "Often 6% to 10% a year, commonly 8%.",
+  },
+  {
+    id: "promote",
+    term: "Promote",
+    aka: ["carried interest", "carry"],
+    category: "Returns",
+    definition:
+      "The extra share of profits the sponsor (GP) earns above its share of the money it invested, once investors have cleared the agreed return hurdles.",
+  },
+  {
     id: "breakeven-occupancy",
     term: "Breakeven occupancy",
     category: "Risk & analysis",

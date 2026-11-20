@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { AXIS_PROPS, BAR_RADIUS, ChartTooltip, GRID_PROPS, SERIES } from "@/components/charts";
 import { Callout, EmptyState, ErrorBlock, LoadingBlock } from "@/components/common";
 import { useDeal } from "@/components/deal-context";
+import { WaterfallCard } from "@/components/waterfall-card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, Switch } from "@/components/ui/overlays";
 import {
@@ -201,6 +202,8 @@ export default function FinancingPage() {
           />
         </>
       )}
+
+      <WaterfallCard propertyId={property.id} canEdit={canEdit} />
 
       {canEdit && (
         <StructureDialog
