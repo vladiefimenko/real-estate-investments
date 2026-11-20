@@ -152,7 +152,7 @@ export default function ReviewPage() {
       </div>
       {d.error && <div className="rounded-md border border-warning/30 bg-warning/8 px-3 py-2 text-xs text-warning">{d.error}</div>}
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
         {/* --------------------------------------------------- Viewer */}
         <Card className="overflow-hidden xl:sticky xl:top-20 xl:max-h-[calc(100vh-6rem)] xl:overflow-y-auto">
           <div className="flex items-center justify-between border-b px-4 py-2 text-xs">

@@ -50,7 +50,7 @@ export default function OverviewPage() {
       )}
       <HeadlineMetrics r={r} />
       {hasRole("viewer") && <IcPanel propertyId={p.id} />}
-      <div className="grid gap-4 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
         <SectionCard
           title="Operating cash flow"
           description={`${base.name} · calculated ${dateTime(r.calculated_at)} · engine v${r.engine_version}`}
@@ -69,7 +69,7 @@ export default function OverviewPage() {
           <RiskPanel r={r} />
         </SectionCard>
       </div>
-      <div className="grid gap-4 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
         <SectionCard title="Sources & uses" className="xl:col-span-2">
           <SourcesUses r={r} />
         </SectionCard>
@@ -77,7 +77,7 @@ export default function OverviewPage() {
           <ExitSummary r={r} />
         </SectionCard>
       </div>
-      <div className="grid gap-4 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
         <SectionCard
           title="Property facts"
           className="xl:col-span-1"
@@ -114,7 +114,7 @@ export default function OverviewPage() {
             </Button>
           }
         >
-          <div className="grid gap-2 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
             {(comparison.data ?? []).map((s) => (
               <div key={s.scenario_id} className="rounded-md border p-3">
                 <div className="flex items-center justify-between text-sm font-medium">

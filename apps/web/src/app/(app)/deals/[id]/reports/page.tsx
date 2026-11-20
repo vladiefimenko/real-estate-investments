@@ -87,7 +87,7 @@ export default function ReportsPage() {
         </Callout>
       )}
 
-      <div className="grid gap-4 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <ReportCard
           icon={FileSpreadsheet}
           title="Full underwriting model"
@@ -178,7 +178,7 @@ export default function ReportsPage() {
         format="PDF · landscape"
         description="A clean, landscape deck for clients, lenders and partners: cover page, investment highlights, cash flow chart and capital stack, and optional key considerations. Your firm name replaces the Axiom header."
         extra={
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <div className="space-y-1.5">
               <Label htmlFor="pr-title">Title (optional)</Label>
               <Input id="pr-title" value={deck.title} maxLength={120} onChange={(e) => setDeck({ ...deck, title: e.target.value })} placeholder={stripDemo(property.name)} />
@@ -223,7 +223,7 @@ export default function ReportsPage() {
         format="PDF"
         description="Four pages for a newer analyst to hand to a senior: a cover note with prepared-by and reviewed-by lines, the deal summary, every key assumption with a plain-English note on what to check, and a glossary of the terms used."
         extra={
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label htmlFor="jp-reviewer">Reviewed by (optional)</Label>
               <Input id="jp-reviewer" value={reviewer} onChange={(e) => setReviewer(e.target.value)} maxLength={120} placeholder="Your senior or team lead" />

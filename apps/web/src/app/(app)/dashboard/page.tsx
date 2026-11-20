@@ -290,7 +290,7 @@ export default function DashboardPage() {
             <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">{layout.metrics.map((k) => metrics[k](data))}</div>
           )}
           {layout.sections.length > 0 && (
-            <div className="grid gap-4 xl:grid-cols-6">
+            <div className="grid grid-cols-1 gap-4 xl:grid-cols-6">
               {layout.sections.map((k) => (
                 <Fragment key={k}>{sections[k](data)}</Fragment>
               ))}
@@ -346,7 +346,7 @@ function RecentDeals() {
           </Link>
         </Button>
       </CardHeader>
-      <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+      <CardContent className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
         {data.slice(0, 6).map((p) => (
           <Link key={p.id} href={`/deals/${p.id}`} className="rounded-md border p-3.5 transition-colors hover:bg-muted/60">
             <div className="flex items-center gap-2">

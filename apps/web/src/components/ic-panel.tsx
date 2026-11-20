@@ -74,7 +74,7 @@ export function IcPanel({ propertyId }: { propertyId: string }) {
       title={`Investment Committee · round ${data.round || 1}`}
       description={data.open ? "Voting is open. Members can change their vote until a decision is recorded." : "This round is decided."}
     >
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
         <div className="space-y-3">
           {data.decision && (
             <div

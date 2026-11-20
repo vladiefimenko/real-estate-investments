@@ -174,7 +174,7 @@ function Summary({ v, property }: { v: Valuation; property: Property }) {
         />
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-5">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-5">
         <Card className="xl:col-span-3">
           <CardHeader>
             <CardTitle>Value by approach</CardTitle>
@@ -242,7 +242,7 @@ function Summary({ v, property }: { v: Valuation; property: Property }) {
       </div>
 
       {(sc || cost) && (
-        <div className="grid gap-4 xl:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
           {sc && (
             <Card>
               <CardHeader>
@@ -577,14 +577,14 @@ function InputsForm({ property, defaults }: { property: Property; defaults?: { e
             />
           </fieldset>
 
-          <fieldset>
+          <fieldset className="min-w-0">
             <legend className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Sales comparables (price per {basis === "unit" ? "unit" : "SF"})
             </legend>
             {s.comps.length === 0 ? (
               <p className="mb-3 text-sm text-muted-foreground">No comparables. Add recent sales to include the sales comparison approach.</p>
             ) : (
-              <div className="mb-3 overflow-x-auto">
+              <div className="relative mb-3 overflow-x-auto">
                 <table className="w-full min-w-[640px] text-sm tabular">
                   <thead>
                     <tr className="text-left text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">

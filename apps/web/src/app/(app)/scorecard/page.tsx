@@ -156,7 +156,7 @@ function Body({ v }: { v: Velocity }) {
         <Metric label="Avg IRR of closed deals" value={m.avg_irr_closed === null ? "—" : pct(m.avg_irr_closed, 1)} term="irr" sub={m.closed_with_irr ? `${m.closed_with_irr} deal${m.closed_with_irr === 1 ? "" : "s"}, base case levered IRR` : "No closed deals yet"} />
       </div>
 
-      <div className="grid gap-5 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         <Card>
           <CardHeader>
             <CardTitle>Your funnel</CardTitle>

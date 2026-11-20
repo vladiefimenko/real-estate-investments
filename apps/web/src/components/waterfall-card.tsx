@@ -129,7 +129,7 @@ export function WaterfallCard({ propertyId, canEdit }: { propertyId: string; can
           {!saved.data.saved && " These are example terms; adjust and save them for this deal."}
         </CardDescription>
       </CardHeader>
-      <CardContent className="grid gap-6 lg:grid-cols-[minmax(0,420px)_1fr]">
+      <CardContent className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,420px)_1fr]">
         <form
           className="space-y-4"
           onSubmit={(e) => {

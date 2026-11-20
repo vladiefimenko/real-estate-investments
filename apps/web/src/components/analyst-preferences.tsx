@@ -50,7 +50,7 @@ function PrefsForm({ initial, onSave, saving, disabled, who }: { initial: Prefs;
         if (dscrOk && bpsOk) onSave({ instructions: instructions.trim() || null, dscr_floor: dscrN, exit_cap_stress_bps: bpsN });
       }}
     >
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="space-y-1.5">
           <Label htmlFor={`${who}-dscr`}>Flag DSCR below</Label>
           <div className="flex items-center gap-1.5">

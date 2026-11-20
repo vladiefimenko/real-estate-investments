@@ -127,7 +127,7 @@ function Editor({ scenario, onScenarioChange }: { scenario: Scenario; onScenario
   const hasErrors = dirty && Object.keys(errors).length > 0;
 
   return (
-    <div className="grid gap-5 xl:grid-cols-[400px_minmax(0,1fr)]">
+    <div className="grid grid-cols-1 gap-5 xl:grid-cols-[400px_minmax(0,1fr)]">
       {/* ----------------------------------------------------------- Editor */}
       <div className="xl:sticky xl:top-20 xl:max-h-[calc(100vh-6rem)] xl:overflow-y-auto">
         <Card className="overflow-hidden">
@@ -312,7 +312,7 @@ function Editor({ scenario, onScenarioChange }: { scenario: Scenario; onScenario
               </p>
             )}
             <Tabs defaultValue="cashflow">
-              <TabsList>
+              <TabsList className="max-w-full overflow-x-auto">
                 <TabsTrigger value="cashflow">Cash flow</TabsTrigger>
                 <TabsTrigger value="capital">Capital & exit</TabsTrigger>
                 <TabsTrigger value="debt">Debt schedule</TabsTrigger>

@@ -118,7 +118,7 @@ export default function DocumentsPage() {
           Why verification matters
         </Link>
       </Callout>
-      <div className="grid gap-4 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         {canEdit && (
           <Card
             className={cn("flex flex-col items-center justify-center border-dashed p-6 text-center transition-colors lg:col-span-2", dragging && "border-accent bg-accent/5")}

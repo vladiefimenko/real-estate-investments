@@ -183,7 +183,7 @@ function buildSlides(p: Property, r: StoredResult, presenter: string, brand: { n
     body: (
       <>
         <SlideTitle>Capital stack and exit</SlideTitle>
-        <div className="grid gap-12 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-12 lg:grid-cols-2">
           <div>
             <h3 className="mb-2 text-xl font-semibold">Sources</h3>
             {su.senior_loan > 0 && <Row label="Senior loan" value={usd(su.senior_loan)} />}
@@ -212,7 +212,7 @@ function buildSlides(p: Property, r: StoredResult, presenter: string, brand: { n
           <SlideTitle sub={`${pct(wf.config.pref_rate, 0)} preferred return, then promote tiers. Investors (LP) contribute ${pct(wf.config.lp_share, 0)} of the equity.`}>
             Investor and sponsor returns
           </SlideTitle>
-          <div className="grid gap-5 lg:grid-cols-2">
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
             {(["lp", "gp"] as const).map((k) => {
               const s = wf.result[k];
               return (
@@ -264,24 +264,36 @@ function buildSlides(p: Property, r: StoredResult, presenter: string, brand: { n
 }
 
 export default function PresentPage() {
+  const router = useRouter();
+  const { status } = useAuth();
+  useEffect(() => {
+    if (status === "anonymous") router.replace("/login");
+  }, [status, router]);
+  // Wait for the session before asking for data (a direct link or refresh starts signed-out for a moment).
+  if (status !== "authenticated")
+    return (
+      <div className="flex min-h-screen items-center justify-center text-sm text-muted-foreground">
+        <span className="mr-3 size-2 animate-ping rounded-full bg-accent" /> Preparing presentation…
+      </div>
+    );
+  return <Presentation />;
+}
+
+function Presentation() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const { status, me } = useAuth();
+  const { me } = useAuth();
   const org = useOrgKey();
   const property = useProperty(id);
   const scenarios = useScenarios(id);
   const base = scenarios.data?.find((s) => s.is_base) ?? scenarios.data?.[0];
   const result = useScenarioResult(base?.id);
-  const wf = useQuery({ queryKey: [org, "waterfall", id], queryFn: () => api<Waterfall>(`/api/properties/${id}/waterfall`), enabled: status === "authenticated", retry: false });
+  const wf = useQuery({ queryKey: [org, "waterfall", id], queryFn: () => api<Waterfall>(`/api/properties/${id}/waterfall`), retry: false });
   const branding = useBranding();
   const logo = useLogoUrl(branding.data?.logo_version, !!branding.data?.has_logo);
   const fs = useFullscreen();
   const [index, setIndex] = useState(0);
   const [showRisk, setShowRisk] = useState(true);
-
-  useEffect(() => {
-    if (status === "anonymous") router.replace("/login");
-  }, [status, router]);
 
   const slides =
     property.data && result.data && me
