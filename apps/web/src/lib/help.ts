@@ -187,6 +187,21 @@ export const HELP: { pattern: RegExp; topic: HelpTopic }[] = [
     },
   },
   {
+    pattern: /^\/scorecard/,
+    topic: {
+      title: "Pipeline scorecard",
+      summary: "How your deals move: how many reach each stage, how long each stage takes, your win rate and the returns of what you closed.",
+      steps: [
+        "Pick a period at the top. Only deals created in that period count, and demo deals never do.",
+        "The funnel shows how many of your deals reached each stage, and what share moved on from the stage before.",
+        "'Waiting right now' flags stages where your open deals are sitting much longer than the workspace average.",
+        "'You vs the workspace' compares you with everyone's deals combined; no one else's name or numbers are shown.",
+        "Download the scorecard CSV for a monthly review.",
+      ],
+      terms: ["pipeline", "irr"],
+    },
+  },
+  {
     pattern: /^\/compare/,
     topic: {
       title: "Compare deals",
