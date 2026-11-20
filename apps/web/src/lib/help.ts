@@ -82,8 +82,9 @@ export const HELP: { pattern: RegExp; topic: HelpTopic }[] = [
         "Add a structure: loan amount or LTV, rate, amortization and any interest-only period.",
         "Optionally add preferred equity and covenants such as a minimum DSCR.",
         "Compare returns, coverage and leverage across structures, then activate one.",
+        "Profit split (waterfall): set how cash is shared between investors and the sponsor (preferred return, then promote tiers) and see each side's IRR.",
       ],
-      terms: ["ltv", "ltc", "dscr", "amortization", "preferred-equity"],
+      terms: ["ltv", "ltc", "dscr", "amortization", "preferred-equity", "waterfall", "promote"],
     },
   },
   {
