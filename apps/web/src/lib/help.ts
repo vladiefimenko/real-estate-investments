@@ -23,6 +23,7 @@ export const HELP: { pattern: RegExp; topic: HelpTopic }[] = [
         "Accept it if it matches, edit it if it's slightly off, or reject it if it's wrong.",
         "Keyboard: j / k move between fields, a accepts, r rejects.",
         "Values marked 'unverified citation' couldn't be matched to the text: check those carefully.",
+        "New to this? Click Tutorial for a one-minute walkthrough, or try Practice verification (in the ⌘K menu) on sample documents.",
         "When you're done, go back to Documents and apply the verified data to the base case.",
       ],
       terms: ["verification", "om", "t12", "rent-roll"],
@@ -213,6 +214,19 @@ export const HELP: { pattern: RegExp; topic: HelpTopic }[] = [
       summary: "Put several deals side by side on the same metrics.",
       steps: ["Pick the deals to compare.", "Read across rows to see which deal leads on each metric."],
       terms: ["irr", "equity-multiple", "dscr", "cap-rate"],
+    },
+  },
+  {
+    pattern: /^\/practice/,
+    topic: {
+      title: "Practice verification",
+      summary: "Nine short exercises built from the mistakes AI extraction most often makes on real documents.",
+      steps: [
+        "Read the highlighted source text and the value the AI took from it.",
+        "Accept it if it matches, edit it if it's the right line but the wrong number, reject it if it's the wrong line altogether.",
+        "Each answer explains the trap (monthly vs annual, budget vs actual, occupancy vs vacancy and more).",
+      ],
+      terms: ["verification", "t12", "om"],
     },
   },
   {

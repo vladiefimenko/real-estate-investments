@@ -134,3 +134,12 @@
   border-radius: 8px;
   color: var(--foreground);
 }
+
+/* Verification tutorial: the element the current step points at */
+.tour-highlight {
+  outline: 3px solid var(--accent);
+  outline-offset: 4px;
+  border-radius: 0.5rem;
+  position: relative;
+  z-index: 40;
+}

@@ -6,6 +6,7 @@ import {
   Building2,
   CornerDownLeft,
   FileText,
+  GraduationCap,
   Gauge,
   GitCompareArrows,
   Keyboard,
@@ -138,6 +139,7 @@ export function CommandPalette() {
       ["/compare", "Compare deals", GitCompareArrows, "G C"],
       ["/scorecard", "Pipeline scorecard", Gauge, ""],
       ["/glossary", "Glossary", BookOpen, "G G"],
+      ["/practice", "Practice verification", GraduationCap, ""],
       ["/settings", "Settings", Settings, "G S"],
     ];
     for (const [href, label, icon, hint] of nav)
