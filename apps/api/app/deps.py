@@ -7,7 +7,7 @@ import time
 import uuid
 from collections import deque
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import timedelta, timezone
 from typing import Any
 
 from fastapi import Depends, Header, HTTPException, Request, status
@@ -91,10 +91,21 @@ class OrgContext:
         prop = self.db.get(Property, property_id)
         if prop is None or prop.org_id != self.org.id or prop.deleted_at is not None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "Property not found")
-        if self.is_external and not self.db.scalar(select(DealShare.id).where(
-                DealShare.property_id == prop.id, DealShare.user_id == self.user.id)):
+        if self.is_external and self.share_for(prop.id) is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "Property not found")
         return prop
+
+    def share_for(self, property_id: uuid.UUID) -> DealShare | None:
+        """This external member's live (unexpired) share of a deal, if any."""
+        share = self.db.scalars(select(DealShare).where(DealShare.property_id == property_id,
+                                                        DealShare.user_id == self.user.id)).first()
+        if share is None:
+            return None
+        if share.expires_at is not None:
+            exp = share.expires_at if share.expires_at.tzinfo else share.expires_at.replace(tzinfo=timezone.utc)
+            if exp <= utcnow():
+                return None
+        return share
 
 
 API_KEY_PREFIX = "axk_"

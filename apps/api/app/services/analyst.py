@@ -14,11 +14,11 @@ TRACE_KEYS = ("metric", "formula", "value")
 
 
 def verified_fields(ctx: OrgContext, prop: Property) -> list[dict[str, Any]]:
-    rows = ctx.db.execute(
-        select(ExtractedData, Document.name).join(Document, Document.id == ExtractedData.document_id)
-        .where(ExtractedData.property_id == prop.id, ExtractedData.status.in_(("accepted", "edited")))
-        .order_by(ExtractedData.field_path)
-    ).all()
+    q = (select(ExtractedData, Document.name).join(Document, Document.id == ExtractedData.document_id)
+         .where(ExtractedData.property_id == prop.id, ExtractedData.status.in_(("accepted", "edited"))))
+    if ctx.is_external:  # guests only see citations from documents in the data room
+        q = q.where(Document.data_room.is_(True))
+    rows = ctx.db.execute(q.order_by(ExtractedData.field_path)).all()
     return [{"field_path": e.field_path, "label": e.label, "value": e.value, "status": e.status,
              "document": name, "source_page": e.source_page, "source_ref": e.source_ref,
              "source_excerpt": e.source_excerpt} for e, name in rows]

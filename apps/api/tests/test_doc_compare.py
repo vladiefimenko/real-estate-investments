@@ -60,4 +60,8 @@ def test_compare_guards(client, owner, prop):
     url = f"/api/documents/{may['id']}/compare"
     assert ext.get(url, params={"other": june["id"]}).status_code == 404
     owner.post(f"/api/properties/{prop['id']}/shares", json={"user_id": ext.user_id})
+    # ...and only for documents in the deal's data room.
+    assert ext.get(url, params={"other": june["id"]}).status_code == 404
+    for d in (may, june):
+        owner.put(f"/api/documents/{d['id']}/data-room", json={"in_room": True})
     assert ext.get(url, params={"other": june["id"]}).status_code == 200

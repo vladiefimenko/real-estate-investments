@@ -19,6 +19,7 @@ from .routers import (
     analyst_settings,
     auth,
     branding,
+    data_room,
     documents,
     insights,
     notifications,
@@ -121,7 +122,8 @@ def create_app() -> FastAPI:
               reports.router, libraries.router, enterprise.router, webhooks.router, workflow.router,
               branding.router, insights.router, views.router,
               analyst_settings.router, waterfall.router,
-              portfolio.router, notifications.router, versions.router):
+              portfolio.router, notifications.router, versions.router,
+              data_room.router):
         app.include_router(r, prefix="/api")
     return app
 

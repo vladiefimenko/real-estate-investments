@@ -15,6 +15,7 @@ import { Badge, Card, Input, Select, Table, TBody, TD, TH, THead, TR } from "@/c
 import { Tooltip } from "@/components/ui/tooltip";
 import { useExtractionFields, useOrgKey } from "@/hooks/queries";
 import { api } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 import { pct, usd } from "@/lib/format";
 import type { DocumentRec, Extraction, FieldDef, Page, UnitType } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -42,6 +43,7 @@ const STATUS_BADGE: Record<string, { variant: "default" | "success" | "danger" |
 export default function ReviewPage() {
   const { docId } = useParams<{ docId: string }>();
   const { property, canEdit } = useDeal();
+  const { org: membership } = useAuth();
   const org = useOrgKey();
   const qc = useQueryClient();
   const fields = useExtractionFields();
@@ -132,7 +134,7 @@ export default function ReviewPage() {
         </span>
         <div className="ml-auto flex flex-wrap items-center gap-2">
           <VerificationTour ready={rows.data.length > 0} onStart={() => flat[0] && select(flat[0])} />
-          <OpenOriginal docId={docId} />
+          {membership?.role !== "external" && <OpenOriginal docId={docId} />}
           {canEdit && (
             <>
               <Button size="sm" variant="ghost" onClick={() => rerun.mutate()} loading={rerun.isPending}>

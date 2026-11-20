@@ -45,6 +45,20 @@ export const HELP: { pattern: RegExp; topic: HelpTopic }[] = [
     },
   },
   {
+    pattern: new RegExp(`${DEAL}/data-room`),
+    topic: {
+      title: "Data room",
+      summary: "The documents you share with lenders and partners, and who has looked at them.",
+      steps: [
+        "Switch documents on to put them in the data room; guests see nothing else.",
+        "Publish package adds the latest one-pager, investment memo and Excel model in one click (IC votes are never included).",
+        "Guests: set an access end date (it stops automatically) and turn downloads off for view-only access.",
+        "PDFs a guest downloads are stamped with their email and the date.",
+        "The access log shows every guest view and download.",
+      ],
+    },
+  },
+  {
     pattern: new RegExp(`${DEAL}/underwriting`),
     topic: {
       title: "Underwriting",
