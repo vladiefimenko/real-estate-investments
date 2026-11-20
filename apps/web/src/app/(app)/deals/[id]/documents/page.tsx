@@ -8,6 +8,7 @@ import { toast } from "sonner";
 
 import { Callout, EmptyState, ErrorBlock, LoadingBlock } from "@/components/common";
 import { useDeal } from "@/components/deal-context";
+import { DocCompare } from "@/components/doc-compare";
 import { SectionCard } from "@/components/deal-widgets";
 import { Button } from "@/components/ui/button";
 import { Badge, Card, Select, Table, TBody, TD, TH, THead, TR } from "@/components/ui/primitives";
@@ -185,6 +186,12 @@ export default function DocumentsPage() {
       {docs.data?.length === 0 && <EmptyState icon={FileText} title="No documents yet" description="Upload an OM, T12 or rent roll to begin AI-assisted extraction." />}
       {!!docs.data?.length && (
         <Card>
+          {docs.data.filter((d) => d.status === "extracted").length >= 2 && (
+            <div className="flex items-center justify-between gap-3 border-b px-4 py-2.5">
+              <span className="text-xs text-muted-foreground">Uploaded a newer rent roll or T12? Compare it with the previous one.</span>
+              <DocCompare docs={docs.data} />
+            </div>
+          )}
           <Table>
             <THead>
               <TR className="hover:bg-transparent">

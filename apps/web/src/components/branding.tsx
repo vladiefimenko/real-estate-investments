@@ -203,7 +203,7 @@ export function BrandingTab() {
                   </Button>
                 )}
               </div>
-              {!colorOk && <p className="text-xs text-danger">Use a hex color like #1F6FEB.</p>}
+              {!colorOk && <p className="text-xs text-destructive">Use a hex color like #1F6FEB.</p>}
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="brand-footer">Report footer (optional)</Label>
