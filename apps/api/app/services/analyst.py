@@ -96,7 +96,19 @@ def _lessons(context: dict[str, Any], q: str) -> list[str]:
     return out
 
 
-def rules_answer(context: dict[str, Any], question: str, learning: bool = False) -> str:
+def _dscr_flag(m: dict[str, Any], floor: float | None) -> str | None:
+    if not floor or m.get("dscr_year1") is None:
+        return None
+    low = [(label, v) for label, v in (("year-1", m["dscr_year1"]), ("minimum", m.get("min_dscr"))) if v is not None
+           and v < floor]
+    if not low:
+        return None
+    return (f"⚠️ **Below your {floor:.2f}x DSCR floor:** "
+            + ", ".join(f"{label} DSCR {mult(v)}" for label, v in low) + ".")
+
+
+def rules_answer(context: dict[str, Any], question: str, learning: bool = False,
+                 prefs: dict[str, Any] | None = None) -> str:
     """Template answers drawn only from engine output – used when no AI model is configured.
 
     With ``learning`` on, each answered topic is followed by a plain-language lesson using the
@@ -107,6 +119,9 @@ def rules_answer(context: dict[str, Any], question: str, learning: bool = False)
     trace = {t["metric"]: t for t in context["audit_trace"]}
     demo = "\n\n_Note: this is fictional demo data._" if context["deal"]["is_demo_data"] else ""
     parts: list[str] = []
+    prefs = prefs or {}
+    flag = _dscr_flag(m, prefs.get("dscr_floor"))
+    stress = prefs.get("exit_cap_stress_bps")
     if "irr" in q or "return" in q:
         parts.append(
             f"**Returns.** Levered IRR is **{pct(m['irr_levered'])}** and unlevered IRR is "
@@ -123,6 +138,8 @@ def rules_answer(context: dict[str, Any], question: str, learning: bool = False)
                 f"{usd(context['annual_cash_flows'][0]['debt_service'])}); minimum over the hold is "
                 f"{mult(m['min_dscr'])}. Debt yield {pct(m['debt_yield_year1'])}, LTV {pct(m['ltv'], 1)}, "
                 f"LTC {pct(m['ltc'], 1)}.")
+            if flag:
+                parts[-1] += "\n\n" + flag
     if "cap" in q:
         spread = (a["exit_cap_rate"] - m["going_in_cap_rate"]) * 10000
         parts.append(
@@ -130,6 +147,9 @@ def rules_answer(context: dict[str, Any], question: str, learning: bool = False)
             f"{pct(a['exit_cap_rate'])}, a {spread:+.0f} bps spread. "
             + ("Exit below entry assumes cap-rate compression – test a higher exit cap."
                if spread < 0 else "Exit above entry builds in a cushion for cap-rate expansion."))
+        if stress:
+            parts[-1] += (f" Your standard stress test: exit cap {pct(a['exit_cap_rate'] + stress / 10000)} "
+                          f"(+{stress} bps). Run it in the Scenarios tab.")
     if any(k in q for k in ("noi", "income", "expense", "opex", "revenue")):
         detail = ", ".join(f"{k} {usd(v)}" for k, v in context["year1_expense_detail"].items())
         parts.append(
@@ -140,13 +160,18 @@ def rules_answer(context: dict[str, Any], question: str, learning: bool = False)
         risk = context.get("risk") or {}
         items = [f"- {f['message']}" for f in risk.get("factors", [])]
         items += [f"- Assumption flag: {w['message']}" for w in context.get("assumption_warnings") or []]
+        if flag:
+            items.append(f"- {flag}")
         parts.append(f"**Risk screen** (score {risk.get('score')} / 100, {risk.get('level')}):\n"
                      + ("\n".join(items) if items else "- No screening flags triggered."))
     if "sensitiv" in q or "stress" in q or "downside" in q:
         parts.append(
             "**Suggested sensitivity ranges** (run them in the Scenarios tab – I don't compute new figures):\n"
             f"- Rent growth {pct(a['rent_growth'] - 0.01)} – {pct(a['rent_growth'] + 0.01)}\n"
-            f"- Exit cap {pct(a['exit_cap_rate'] - 0.005)} – {pct(a['exit_cap_rate'] + 0.005)}\n"
+            + (f"- Exit cap {pct(a['exit_cap_rate'])} – {pct(a['exit_cap_rate'] + stress / 10000)} "
+               f"(your standard +{stress} bps stress)\n" if stress else
+               f"- Exit cap {pct(a['exit_cap_rate'] - 0.005)} – {pct(a['exit_cap_rate'] + 0.005)}\n")
+            +
             f"- Vacancy {pct(a['vacancy_rate'])} – {pct(a['vacancy_rate'] + 0.03)}\n"
             f"- Expense growth {pct(a['opex_growth'])} – {pct(a['opex_growth'] + 0.01)}")
     if not parts:
@@ -155,6 +180,8 @@ def rules_answer(context: dict[str, Any], question: str, learning: bool = False)
             f"{pct(m['going_in_cap_rate'])}, levered IRR {pct(m['irr_levered'])}, equity multiple "
             f"{mult(m['equity_multiple_levered'])}, DSCR {mult(m['dscr_year1'])}.\n\nAsk me about returns, debt "
             "coverage, cap rates, the NOI build-up, risks, or sensitivity ranges.")
+        if flag:
+            parts[-1] += "\n\n" + flag
     if learning:
         lessons = _lessons(context, q)
         parts.extend(lessons or [

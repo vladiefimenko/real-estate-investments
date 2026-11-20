@@ -5,6 +5,7 @@ import { Bot, Eraser, GraduationCap, Send, Sparkles, User } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
+import { AnalystPreferences, RememberCorrection } from "@/components/analyst-preferences";
 import { Callout } from "@/components/common";
 import { useDeal } from "@/components/deal-context";
 import { Button } from "@/components/ui/button";
@@ -195,7 +196,12 @@ export default function AnalystPage() {
                 ) : (
                   <p className="whitespace-pre-wrap text-sm">{m.content}</p>
                 )}
-                {m.role === "assistant" && m.model && <div className="mt-1.5 text-[10px] uppercase tracking-wide text-muted-foreground">{m.model}</div>}
+                {m.role === "assistant" && m.content && !busy && (
+                  <div className="mt-1.5 flex items-center justify-between gap-3">
+                    {m.model ? <span className="text-[10px] uppercase tracking-wide text-muted-foreground">{m.model}</span> : <span />}
+                    <RememberCorrection />
+                  </div>
+                )}
               </div>
             </div>
           ))}
@@ -229,6 +235,7 @@ export default function AnalystPage() {
         </form>
       </Card>
       <div className="space-y-4">
+        <AnalystPreferences aiAvailable={!!status.data?.ai_available} />
         <Card className="space-y-3 p-4">
           <div className="flex items-start justify-between gap-3">
             <div>

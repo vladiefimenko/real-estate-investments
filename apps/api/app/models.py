@@ -88,6 +88,8 @@ class OrganizationMember(Base):
     role: Mapped[str] = mapped_column(String(20), nullable=False)
     invited_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     joined_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    # Personal, per-workspace preferences (e.g. the AI analyst's custom instructions). Private to the member.
+    preferences: Mapped[dict[str, Any] | None] = mapped_column(JSONType)
 
     user: Mapped[User] = relationship(back_populates="memberships")
     organization: Mapped[Organization] = relationship(back_populates="members")
