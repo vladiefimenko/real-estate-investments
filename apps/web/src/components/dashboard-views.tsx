@@ -228,7 +228,7 @@ export function DashboardViewControls({ ctl }: { ctl: Ctl }) {
           description="Tick what to show and use the arrows to set the order. Changes apply right away; save them as a view from the Views menu to keep them."
           className="max-w-2xl"
         >
-          <div className="grid gap-5 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
             <Reorder title="Metric cards" labels={METRIC_LABELS} shown={ctl.layout.metrics} onChange={(metrics) => ctl.edit({ metrics })} />
             <Reorder title="Sections" labels={SECTION_LABELS} shown={ctl.layout.sections} onChange={(sections) => ctl.edit({ sections })} />
           </div>

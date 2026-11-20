@@ -117,7 +117,7 @@ export function DocCompare({ docs }: { docs: DocumentRec[] }) {
           description="See what changed between two documents on this deal, such as last month's and this month's rent roll or T12. The older upload is shown as “before”. Reviewed values are used where you've accepted or edited them."
           className="max-w-4xl"
         >
-          <div className="grid items-end gap-3 sm:grid-cols-[1fr_auto_1fr]">
+          <div className="grid grid-cols-1 items-end gap-3 sm:grid-cols-[1fr_auto_1fr]">
             <div className="space-y-1.5">
               <Label htmlFor="cmp-a">Document</Label>
               <Select id="cmp-a" value={a} onChange={(e) => setPick([e.target.value, b])}>

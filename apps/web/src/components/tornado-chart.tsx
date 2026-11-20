@@ -99,10 +99,16 @@ export function TornadoChart({ propertyId, scenarioId, resultId }: { propertyId:
                       className={cn("absolute inset-y-1 rounded-r", "bg-success/60")}
                       style={{ left: "50%", width: `${Math.max(0, right - 50)}%` }}
                     />
-                    <span className="absolute top-1/2 -translate-y-1/2 pr-1 text-[11px] tabular" style={{ right: `${100 - left}%` }}>
+                    <span
+                      className={cn("absolute top-1/2 -translate-y-1/2 text-[11px] tabular", left < 15 ? "pl-1" : "pr-1")}
+                      style={left < 15 ? { left: `${left}%` } : { right: `${100 - left}%` }}
+                    >
                       {fmt(lowIsWorse ? lo : hi)}
                     </span>
-                    <span className="absolute top-1/2 -translate-y-1/2 pl-1 text-[11px] tabular" style={{ left: `${right}%` }}>
+                    <span
+                      className={cn("absolute top-1/2 -translate-y-1/2 text-[11px] tabular", right > 85 ? "pr-1" : "pl-1")}
+                      style={right > 85 ? { right: `${100 - right}%` } : { left: `${right}%` }}
+                    >
                       {fmt(lowIsWorse ? hi : lo)}
                     </span>
                   </div>

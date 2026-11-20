@@ -344,7 +344,7 @@ function Comparison({ rows }: { rows: CompareRow[] }) {
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 xl:grid-cols-5">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-5">
         <Card className="xl:col-span-3">
           <CardHeader>
             <CardTitle>Levered IRR by structure</CardTitle>

@@ -238,7 +238,7 @@ export default function DevelopmentPage() {
         {!start.saved && " Starting inputs are illustrative defaults scaled from the deal's price."}
       </Callout>
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]">
         <Card className="self-start">
           <CardHeader>
             <CardTitle>Inputs</CardTitle>
@@ -325,7 +325,7 @@ function Outputs({ r, stale }: { r: DevResult; stale: boolean }) {
         <Metric label="Equity required" value={usdShort(r.capital.equity)} sub={usd(r.capital.equity)} />
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader>
             <CardTitle>Development budget</CardTitle>

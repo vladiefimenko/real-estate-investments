@@ -154,7 +154,7 @@ export function BrandingTab() {
   const preview = colorOk && v.accent_color ? v.accent_color : "#0B1F3A";
 
   return (
-    <div className="grid gap-5 lg:grid-cols-[1fr_360px]">
+    <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_360px]">
       <Card>
         <CardHeader>
           <CardTitle>Branding</CardTitle>

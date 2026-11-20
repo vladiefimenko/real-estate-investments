@@ -247,7 +247,7 @@ function OrganizationTab() {
   if (!org || !me) return null;
 
   return (
-    <div className="grid gap-4 xl:grid-cols-3">
+    <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
       <Card className="xl:col-span-2">
         <CardHeader>
           <CardTitle>Workspace</CardTitle>
@@ -634,7 +634,7 @@ function InvitationsCard({ canInviteAdmin }: { canInviteAdmin: boolean }) {
       </CardHeader>
       <CardContent className="space-y-4">
         <form
-          className="grid gap-3 sm:grid-cols-[1fr_10rem_auto] sm:items-end"
+          className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_10rem_auto] sm:items-end"
           onSubmit={(e) => {
             e.preventDefault();
             invite.mutate();
@@ -829,11 +829,11 @@ function BillingTab() {
           recorded in the audit log.
         </Callout>
       )}
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <UsageCard label="Deals" used={b.usage.deals} max={current?.max_deals ?? null} />
         <UsageCard label="Members" used={b.usage.members} max={current?.max_members ?? null} />
       </div>
-      <div className="grid gap-4 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         {keys.map((k) => {
           const p = b.plans[k];
           const isCurrent = k === b.plan;

@@ -82,7 +82,7 @@ export default function ScenariosPage() {
         description="Conservative / Base / Optimistic cases, or your own. Each scenario is a full assumption set with its own stored results."
         action={
           canEdit && (
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <Button size="sm" variant="outline" onClick={() => defaults.mutate()} loading={defaults.isPending}>
                 <Copy /> Create default cases
               </Button>
@@ -96,7 +96,7 @@ export default function ScenariosPage() {
         {comparison.isLoading ? (
           <LoadingBlock />
         ) : (
-          <div className="grid gap-5 2xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+          <div className="grid grid-cols-1 gap-5 2xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
             <Table className="text-xs">
               <THead>
                 <TR className="hover:bg-transparent">
@@ -417,7 +417,7 @@ function MonteCarlo() {
             <Metric label={`P(IRR < ${pct(discount, 1)})`} value={pct(r.prob_irr_below_discount_rate, 1)} hint="Probability the levered IRR falls short of the discount rate." />
             <Metric label="P(loss of capital)" value={pct(r.prob_loss, 1)} tone={(r.prob_loss ?? 0) > 0.1 ? "bad" : undefined} hint="Share of runs with equity multiple below 1.0x." />
           </div>
-          <div className="grid gap-4 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
             <Card className="p-4">
               <div className="mb-2 text-sm font-medium">Distribution of levered IRR</div>
               <div className="h-60">

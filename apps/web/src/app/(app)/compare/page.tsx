@@ -201,7 +201,7 @@ function CompareInner() {
   return (
     <>
       {header}
-      <div className="grid gap-4 lg:grid-cols-[18rem_minmax(0,1fr)]">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[18rem_minmax(0,1fr)]">
         <DealPicker
           deals={properties.data}
           selected={selected}
@@ -218,7 +218,7 @@ function CompareInner() {
           {selected.length > 0 && rows.length > 0 && (
             <>
               <MetricsTable rows={rows} colorOf={colorOf} updating={compare.isFetching} />
-              <div className="grid gap-4 xl:grid-cols-5">
+              <div className="grid grid-cols-1 gap-4 xl:grid-cols-5">
                 <RadarCard rows={rows} className="xl:col-span-3" />
                 <RiskFactors rows={rows} colorOf={colorOf} className="xl:col-span-2" />
               </div>

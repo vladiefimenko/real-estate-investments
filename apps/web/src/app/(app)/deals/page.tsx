@@ -274,7 +274,7 @@ function Kanban({ deals }: { deals: Property[] }) {
     onError: (e) => toast.error(e.message),
   });
   return (
-    <div className="grid gap-3 overflow-x-auto pb-2 md:grid-cols-5">
+    <div className="grid grid-cols-1 gap-3 overflow-x-auto pb-2 md:grid-cols-5">
       {STATUSES.map((s) => {
         const col = deals.filter((d) => d.status === s);
         return (
