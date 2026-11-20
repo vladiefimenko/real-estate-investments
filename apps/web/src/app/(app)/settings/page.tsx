@@ -1,12 +1,13 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { BarChart3, Building2, Check, Copy, CreditCard, Flag, History, KeyRound, Mail, Plus, Search, Trash2, Users, Webhook, Workflow } from "lucide-react";
+import { BarChart3, Building2, Palette, Check, Copy, CreditCard, Flag, History, KeyRound, Mail, Plus, Search, Trash2, Users, Webhook, Workflow } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { Callout, EmptyState, ErrorBlock, LoadingBlock, PageHeader } from "@/components/common";
+import { BrandingTab } from "@/components/branding";
 import { ApiKeysTab, AuditExport, UsageTab, WebhooksTab } from "@/components/enterprise-settings";
 import { WorkflowTab } from "@/components/workflow-settings";
 import { Button } from "@/components/ui/button";
@@ -98,7 +99,7 @@ const ROLE_LABELS: Record<Role, string> = {
 };
 const RANK: Record<Role, number> = { external: -1, viewer: 0, auditor: 0, analyst: 1, admin: 2, owner: 3 };
 const PLAN_ORDER = ["starter", "professional", "enterprise"];
-const TAB_KEYS = ["organization", "members", "billing", "features", "audit", "usage", "api-keys", "webhooks", "workflow"] as const;
+const TAB_KEYS = ["organization", "members", "billing", "features", "audit", "usage", "api-keys", "webhooks", "workflow", "branding"] as const;
 type TabKey = (typeof TAB_KEYS)[number];
 
 function shortDate(iso: string | null | undefined): string {
@@ -177,6 +178,9 @@ function SettingsInner() {
             <TabsTrigger value="members">
               <Users className="size-3.5" /> Members
             </TabsTrigger>
+            <TabsTrigger value="branding">
+              <Palette className="size-3.5" /> Branding
+            </TabsTrigger>
             <TabsTrigger value="billing">
               <CreditCard className="size-3.5" /> Billing &amp; plan
             </TabsTrigger>
@@ -205,6 +209,9 @@ function SettingsInner() {
         </TabsContent>
         <TabsContent value="members" className="rounded-md focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring">
           <MembersTab />
+        </TabsContent>
+        <TabsContent value="branding" className="rounded-md focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring">
+          <BrandingTab />
         </TabsContent>
         <TabsContent value="billing" className="rounded-md focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring">
           <BillingTab />

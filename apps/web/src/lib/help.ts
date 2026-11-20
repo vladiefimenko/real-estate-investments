@@ -206,7 +206,7 @@ export const HELP: { pattern: RegExp; topic: HelpTopic }[] = [
     pattern: /^\/settings/,
     topic: {
       title: "Settings",
-      summary: "Manage your workspace: members and roles, features, billing, the audit log, usage and API keys.",
+      summary: "Manage your workspace: members and roles, features, billing, branding, the audit log, usage and API keys.",
       steps: [
         "Invite teammates and give them a role: Owner, Admin, Analyst, Viewer, Auditor or External.",
         "Viewers can read everything but can't change deals. Auditors can also export the audit log and see usage.",
@@ -215,6 +215,7 @@ export const HELP: { pattern: RegExp; topic: HelpTopic }[] = [
         "Webhooks notify another system (a CRM, Slack workflow or data pipeline) when deals change stage or reports are generated.",
         "In Audit log, export the full history as CSV or JSON for compliance reviews.",
         "Workflow sets what must be done before a deal moves to Underwriting, IC or Closed.",
+        "Branding puts your firm's name, logo and color on the app and on every PDF report.",
       ],
     },
   },

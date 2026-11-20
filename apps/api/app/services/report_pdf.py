@@ -77,19 +77,57 @@ def mult(v: float | None) -> str:
     return "n/a" if v is None else f"{v:.2f}x"
 
 
+def _brand_header(canvas, w: float, top: float, bar_h: float, name: str | None, title: str, size: float) -> None:
+    """Draw the header bar using the workspace's white-label settings (falls back to Axiom's look)."""
+    from . import branding as br
+
+    b = br.current()
+    accent = b.get("accent_color")
+    bar = colors.HexColor(accent) if accent else NAVY
+    canvas.setFillColor(bar)
+    canvas.rect(0, top - bar_h, w, bar_h, fill=1, stroke=0)
+    canvas.setFillColor(NAVY if accent else GOLD)
+    canvas.rect(0, top - bar_h - 0.04 * inch, w, 0.04 * inch, fill=1, stroke=0)
+    text = colors.HexColor(br.contrast_text(accent)) if accent else colors.white
+    x = 0.6 * inch
+    baseline = top - bar_h / 2 - size * 0.35
+    logo = b.get("logo_png")
+    if logo:
+        try:
+            from reportlab.lib.utils import ImageReader
+
+            img = ImageReader(io.BytesIO(logo))
+            iw, ih = img.getSize()
+            lh = bar_h * 0.7
+            lw = min(lh * iw / ih, 1.8 * inch)
+            lh = lw * ih / iw
+            canvas.drawImage(img, x, top - bar_h / 2 - lh / 2, lw, lh, mask="auto")
+            x += lw + 0.12 * inch
+        except Exception:  # noqa: BLE001 - a bad logo must never break a report
+            pass
+    canvas.setFillColor(text)
+    canvas.setFont("Helvetica-Bold", size)
+    canvas.drawString(x, baseline, (name or b.get("brand_name") or "AXIOM")[:60])
+    canvas.setFont("Helvetica", size - 2)
+    canvas.drawRightString(w - 0.6 * inch, baseline, title[:90])
+
+
+def _brand_footer(canvas, w: float, y: float) -> None:
+    from . import branding as br
+
+    footer = br.current().get("report_footer")
+    if footer:
+        canvas.setFillColor(MUTED)
+        canvas.setFont("Helvetica", 6.5)
+        canvas.drawString(0.6 * inch, y, footer[:200])
+
+
 def _decorate(demo: bool, title: str):
     def draw(canvas, doc):
         canvas.saveState()
         w, h = LETTER
-        canvas.setFillColor(NAVY)
-        canvas.rect(0, h - 0.42 * inch, w, 0.42 * inch, fill=1, stroke=0)
-        canvas.setFillColor(GOLD)
-        canvas.rect(0, h - 0.46 * inch, w, 0.04 * inch, fill=1, stroke=0)
-        canvas.setFillColor(colors.white)
-        canvas.setFont("Helvetica-Bold", 10)
-        canvas.drawString(0.6 * inch, h - 0.28 * inch, "AXIOM")
-        canvas.setFont("Helvetica", 8)
-        canvas.drawRightString(w - 0.6 * inch, h - 0.28 * inch, title)
+        _brand_header(canvas, w, h, 0.42 * inch, None, title, 10)
+        _brand_footer(canvas, w, 0.55 * inch)
         canvas.setFillColor(MUTED)
         canvas.setFont("Helvetica", 6.5)
         canvas.drawString(0.6 * inch, 0.4 * inch,
@@ -608,15 +646,8 @@ def _presentation_frame(demo: bool, brand: str, title: str):
     def draw(canvas, doc):
         w, h = landscape(LETTER)
         canvas.saveState()
-        canvas.setFillColor(NAVY)
-        canvas.rect(0, h - 0.5 * inch, w, 0.5 * inch, fill=1, stroke=0)
-        canvas.setFillColor(GOLD)
-        canvas.rect(0, h - 0.54 * inch, w, 0.04 * inch, fill=1, stroke=0)
-        canvas.setFillColor(colors.white)
-        canvas.setFont("Helvetica-Bold", 12)
-        canvas.drawString(0.6 * inch, h - 0.33 * inch, brand)
-        canvas.setFont("Helvetica", 9)
-        canvas.drawRightString(w - 0.6 * inch, h - 0.33 * inch, title)
+        _brand_header(canvas, w, h, 0.5 * inch, brand, title, 12)
+        _brand_footer(canvas, w, 0.5 * inch)
         canvas.setFillColor(MUTED)
         canvas.setFont("Helvetica", 6.5)
         canvas.drawString(0.6 * inch, 0.35 * inch,
@@ -639,6 +670,10 @@ def presentation(prop: Any, scenario_name: str, r: dict[str, Any], *, title: str
                  presenter: str, firm_name: str | None, include_risk: bool) -> bytes:
     """Landscape client deck: cover, investment highlights, cash flow, capital stack and exit."""
     from reportlab.lib.pagesizes import landscape
+
+    from . import branding as br
+
+    firm_name = firm_name or br.current().get("brand_name")
 
     buf = io.BytesIO()
     page = landscape(LETTER)
