@@ -193,6 +193,21 @@ export const HELP: { pattern: RegExp; topic: HelpTopic }[] = [
     },
   },
   {
+    pattern: /^\/portfolio/,
+    topic: {
+      title: "Portfolio",
+      summary: "How capital is spread across markets, property types, sponsors, building ages and stages, and how each part is performing.",
+      steps: [
+        "Pick a breakdown (Market, Property type, Sponsor…) and which deals to include at the top.",
+        "Share of volume shows concentration; a warning appears when one segment is over 40% of the portfolio.",
+        "IRR / risk compares return to Axiom's risk score: higher means more return for the risk taken.",
+        "Build report creates a board or IC PDF with the breakdowns you choose.",
+        "Set a deal's sponsor from Edit on the deal's Overview.",
+      ],
+      terms: ["irr", "cap-rate", "noi", "risk-score"],
+    },
+  },
+  {
     pattern: /^\/scorecard/,
     topic: {
       title: "Pipeline scorecard",

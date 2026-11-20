@@ -90,6 +90,7 @@ export default function OverviewPage() {
           }
         >
           <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+            {typeof p.attributes?.sponsor === "string" && p.attributes.sponsor && <Fact k="Sponsor" v={p.attributes.sponsor} />}
             <Fact k="Year built" v={p.year_built ?? "—"} />
             <Fact k="Units" v={p.units?.toLocaleString() ?? "—"} />
             <Fact k="Rentable SF" v={p.rentable_sf?.toLocaleString() ?? "—"} />
@@ -214,6 +215,16 @@ function EditFactsDialog({ open, onOpenChange }: { open: boolean; onOpenChange: 
           <div className="col-span-2 space-y-1.5">
             <Label htmlFor="ef-name">Name</Label>
             <Input id="ef-name" required {...text("name")} />
+          </div>
+          <div className="col-span-2 space-y-1.5">
+            <Label htmlFor="ef-sponsor">Sponsor (optional)</Label>
+            <Input
+              id="ef-sponsor"
+              maxLength={120}
+              placeholder="The operator or partner bringing the deal"
+              value={String(f.attributes.sponsor ?? "")}
+              onChange={(e) => setF({ ...f, attributes: { ...f.attributes, sponsor: e.target.value } })}
+            />
           </div>
           <div className="col-span-2 space-y-1.5">
             <Label htmlFor="ef-address">Address</Label>

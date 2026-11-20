@@ -25,6 +25,8 @@ from ..schemas import PropertyCreate, PropertyOut, PropertySummary, PropertyUpda
 from ..services.property_types import catalogue, default_assumptions
 from ..services.underwriting import headline, run_and_store, sync_property_to_scenarios
 
+SYSTEM_ATTRIBUTES = ("ic", "waterfall", "development")
+
 router = APIRouter(tags=["properties"])
 
 
@@ -126,6 +128,18 @@ def update_property(property_id: uuid.UUID, body: PropertyUpdate, ctx: OrgContex
     if not changes:
         ctx.db.commit()
         return prop
+    if "attributes" in changes:
+        # Merge, never replace: keys owned by other features (IC votes, profit split, development inputs) can only
+        # change through their own endpoints, so a stale edit form can't overwrite them. Empty values remove a key.
+        merged = dict(prop.attributes or {})
+        for k, v in (changes["attributes"] or {}).items():
+            if k in SYSTEM_ATTRIBUTES:
+                continue
+            if v is None or v == "":
+                merged.pop(k, None)
+            else:
+                merged[k] = v
+        changes["attributes"] = merged
     before = {k: getattr(prop, k) for k in changes}
     for k, v in changes.items():
         setattr(prop, k, v)
