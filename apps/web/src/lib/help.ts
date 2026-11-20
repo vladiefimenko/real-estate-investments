@@ -180,7 +180,8 @@ export const HELP: { pattern: RegExp; topic: HelpTopic }[] = [
       steps: [
         "Follow the Getting Started checklist if you're new.",
         "Press ⌘K (Ctrl+K on Windows) to jump to any deal or page; press ? for all keyboard shortcuts.",
-        "Filter by property type or stage at the top.",
+        "Filter by property type or stage at the top, or switch on My deals.",
+        "Views menu: hide or reorder cards and sections, then save the layout as a named view. Pick one to open by default.",
         "Alerts list deals whose risk screen or covenants need attention.",
       ],
       terms: ["pipeline", "aum", "cap-rate", "irr"],

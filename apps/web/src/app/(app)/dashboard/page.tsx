@@ -3,14 +3,17 @@
 import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, ArrowRight, Building2, Plus } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { Fragment } from "react";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 import { AXIS_PROPS, BAR_RADIUS, ChartTooltip, GRID_PROPS, SERIES } from "@/components/charts";
+import { DashboardViewControls, useDashboardLayout } from "@/components/dashboard-views";
+import type { Layout, MetricKey, SectionKey } from "@/components/dashboard-views";
 import { EmptyState, ErrorBlock, LoadingBlock, Metric, PageHeader, StatusBadge } from "@/components/common";
 import { GettingStarted } from "@/components/getting-started";
 import { WeeklyProgress } from "@/components/weekly-progress";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/overlays";
 import { Badge, Card, CardContent, CardDescription, CardHeader, CardTitle, Select } from "@/components/ui/primitives";
 import { useOrgKey } from "@/hooks/queries";
 import { api } from "@/lib/api";
@@ -66,14 +69,158 @@ const ACTION_LABELS: Record<string, string> = {
 
 export default function DashboardPage() {
   const org = useOrgKey();
-  const { hasRole } = useAuth();
-  const [type, setType] = useState("");
-  const [status, setStatus] = useState("");
-  const qs = new URLSearchParams({ ...(type && { property_type: type }), ...(status && { status }) }).toString();
+  const { hasRole, me } = useAuth();
+  const ctl = useDashboardLayout();
+  const { layout } = ctl;
+  const f = layout.filters;
+  const setFilter = (next: Partial<Layout["filters"]>) => ctl.edit({ filters: { ...f, ...next } });
+  const qs = new URLSearchParams({
+    ...(f.property_type && { property_type: f.property_type }),
+    ...(f.status && { status: f.status }),
+    ...(f.mine_only && me && { owner_id: me.user.id }),
+  }).toString();
   const { data, isLoading, error } = useQuery({
     queryKey: [org, "dashboard", qs],
     queryFn: () => api<Dashboard>(`/api/dashboard${qs ? `?${qs}` : ""}`),
+    enabled: ctl.ready,
   });
+
+  const metrics: Record<MetricKey, (d: Dashboard) => React.ReactNode> = {
+    active_deals: (d) => <Metric key="active_deals" label="Active deals" value={d.totals.active_deals} sub={`${d.totals.deals} total`} />,
+    pipeline_volume: (d) => (
+      <Metric key="pipeline_volume" label="Pipeline volume" term="pipeline" hint="Purchase prices of deals from Sourcing through Investment Committee." value={usdShort(d.totals.pipeline_volume)} sub="Sourcing → IC" />
+    ),
+    aum: (d) => <Metric key="aum" label="AUM (closed)" term="aum" value={usdShort(d.totals.aum)} />,
+    cap_rate: (d) => (
+      <Metric
+        key="cap_rate"
+        label="Wtd. avg cap rate"
+        term="cap-rate"
+        value={pct(d.totals.weighted_avg_cap_rate)}
+        hint="On this dashboard: going-in cap rates weighted by purchase price, excluding passed deals."
+      />
+    ),
+    irr_median: (d) => <Metric key="irr_median" label="Median levered IRR" term="irr" value={pct(d.totals.irr_median, 1)} hint="On this dashboard: base scenarios, latest calculation." />,
+    irr_range: (d) => (
+      <Metric
+        key="irr_range"
+        label="IRR range"
+        value={
+          <span className="text-base">
+            {pct(d.totals.irr_min, 1)} – {pct(d.totals.irr_max, 1)}
+          </span>
+        }
+      />
+    ),
+  };
+
+  const sections: Record<SectionKey, (data: Dashboard) => React.ReactNode> = {
+    pipeline: (data) => (
+      <Card className="xl:col-span-4">
+        <CardHeader>
+          <CardTitle>Pipeline by stage</CardTitle>
+          <CardDescription>Deal volume (purchase price) at each stage.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="h-56">
+            <ResponsiveContainer>
+              <BarChart data={data.pipeline.map((p) => ({ ...p, label: STATUS_LABELS[p.status] }))} barCategoryGap="30%">
+                <CartesianGrid {...GRID_PROPS} />
+                <XAxis dataKey="label" {...AXIS_PROPS} />
+                <YAxis {...AXIS_PROPS} tickFormatter={(v) => usdShort(v)} width={64} axisLine={false} />
+                <Tooltip cursor={{ fill: "var(--muted)" }} content={<ChartTooltip format={usdShort} />} />
+                <Bar dataKey="volume" name="Volume" fill={SERIES[0]} radius={BAR_RADIUS} maxBarSize={48} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="mt-3 grid grid-cols-5 gap-2 text-center text-xs">
+            {data.pipeline.map((p) => (
+              <Link
+                key={p.status}
+                href={`/deals?status=${p.status}`}
+                className="rounded-md border px-2 py-1.5 transition-colors hover:bg-muted"
+              >
+                <div className="text-muted-foreground">{STATUS_LABELS[p.status]}</div>
+                <div className="text-sm font-semibold tabular">{p.count}</div>
+              </Link>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    ),
+    exposure: (data) => (
+      <Card className="xl:col-span-2">
+        <CardHeader>
+          <CardTitle>Exposure by property type</CardTitle>
+          <CardDescription>Share of purchase price, excluding passed deals.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ExposureBars rows={data.exposure_by_type.map((r) => ({ ...r, key: TYPE_LABELS[r.key] ?? r.key }))} />
+          <div className="mt-5 mb-2 text-xs font-medium text-muted-foreground">By state</div>
+          <ExposureBars rows={data.exposure_by_state} />
+        </CardContent>
+      </Card>
+    ),
+    alerts: (data) => (
+      <Card className="xl:col-span-3">
+        <CardHeader>
+          <CardTitle>Alerts</CardTitle>
+          <CardDescription>Risk-screen flags and projected covenant breaches.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          {data.alerts.length === 0 && <p className="text-sm text-muted-foreground">No alerts. All deals clear the screening thresholds.</p>}
+          {data.alerts.map((a, i) => (
+            <Link
+              key={i}
+              href={`/deals/${a.property_id}`}
+              className="flex items-start gap-3 rounded-md border px-3 py-2.5 text-sm transition-colors hover:bg-muted"
+            >
+              <AlertTriangle className={a.severity === "high" ? "mt-0.5 size-4 text-destructive" : "mt-0.5 size-4 text-warning"} aria-label={a.severity} />
+              <div className="min-w-0">
+                <div className="font-medium">{stripDemo(a.name)}</div>
+                <div className="text-muted-foreground">{a.message}</div>
+              </div>
+              <Badge variant={a.severity === "high" ? "danger" : "warning"} className="ml-auto shrink-0">
+                {a.severity}
+              </Badge>
+            </Link>
+          ))}
+        </CardContent>
+      </Card>
+    ),
+    activity: (data) => (
+      <Card className="xl:col-span-3">
+        <CardHeader>
+          <CardTitle>Recent activity</CardTitle>
+          <CardDescription>Audit trail across the workspace.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ol className="space-y-2.5">
+            {data.recent_activity.map((a, i) => (
+              <li key={i} className="flex items-start gap-3 text-sm">
+                <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-accent" aria-hidden />
+                <div className="min-w-0 flex-1">
+                  <span className="font-medium">{a.user_name ?? "System"}</span>{" "}
+                  <span className="text-muted-foreground">{ACTION_LABELS[a.action] ?? a.action}</span>{" "}
+                  {a.property_id && a.property_name ? (
+                    <Link href={`/deals/${a.property_id}`} className="font-medium hover:underline">
+                      {stripDemo(a.property_name)}
+                    </Link>
+                  ) : null}
+                </div>
+                <span className="shrink-0 text-xs text-muted-foreground">{relativeTime(a.created_at)}</span>
+              </li>
+            ))}
+          </ol>
+        </CardContent>
+      </Card>
+    ),
+    recent_deals: () => (
+      <div className="xl:col-span-6">
+        <RecentDeals />
+      </div>
+    ),
+  };
 
   return (
     <>
@@ -82,7 +229,7 @@ export default function DashboardPage() {
         description="Pipeline, exposure and portfolio returns across your workspace."
         actions={
           <>
-            <Select value={type} onChange={(e) => setType(e.target.value)} className="w-40" aria-label="Filter by property type">
+            <Select value={f.property_type ?? ""} onChange={(e) => setFilter({ property_type: e.target.value || null })} className="w-40" aria-label="Filter by property type">
               <option value="">All property types</option>
               {Object.entries(TYPE_LABELS).map(([k, v]) => (
                 <option key={k} value={k}>
@@ -90,7 +237,7 @@ export default function DashboardPage() {
                 </option>
               ))}
             </Select>
-            <Select value={status} onChange={(e) => setStatus(e.target.value)} className="w-40" aria-label="Filter by status">
+            <Select value={f.status ?? ""} onChange={(e) => setFilter({ status: e.target.value || null })} className="w-40" aria-label="Filter by status">
               <option value="">All statuses</option>
               {Object.entries(STATUS_LABELS).map(([k, v]) => (
                 <option key={k} value={k}>
@@ -98,6 +245,11 @@ export default function DashboardPage() {
                 </option>
               ))}
             </Select>
+            <label className="flex h-9 items-center gap-2 rounded-md border bg-card px-3 text-sm">
+              <Switch checked={f.mine_only} onCheckedChange={(v) => setFilter({ mine_only: v })} aria-label="Only my deals" />
+              My deals
+            </label>
+            <DashboardViewControls ctl={ctl} />
             {hasRole("analyst") && (
               <Button asChild>
                 <Link href="/deals?new=1">
@@ -110,15 +262,15 @@ export default function DashboardPage() {
       />
       <GettingStarted />
       <WeeklyProgress />
-      {isLoading && <LoadingBlock rows={6} />}
+      {(isLoading || !ctl.ready) && <LoadingBlock rows={6} />}
       {error && <ErrorBlock error={error} />}
       {data && data.totals.deals === 0 && (
         <EmptyState
           icon={Building2}
-          title="No deals yet"
-          description="Create your first deal to start underwriting, or reset filters."
+          title={qs ? "No deals match these filters" : "No deals yet"}
+          description={qs ? "Change or clear the filters at the top to see more deals." : "Create your first deal to start underwriting."}
           action={
-            hasRole("analyst") ? (
+            hasRole("analyst") && !qs ? (
               <Button asChild>
                 <Link href="/deals?new=1">Create a deal</Link>
               </Button>
@@ -134,125 +286,19 @@ export default function DashboardPage() {
               {data.totals.demo_deals} of {data.totals.deals} deals are fictional demo data, shown for demonstration purposes only.
             </div>
           )}
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-            <Metric label="Active deals" value={data.totals.active_deals} sub={`${data.totals.deals} total`} />
-            <Metric label="Pipeline volume" term="pipeline" hint="Purchase prices of deals from Sourcing through Investment Committee." value={usdShort(data.totals.pipeline_volume)} sub="Sourcing → IC" />
-            <Metric label="AUM (closed)" term="aum" value={usdShort(data.totals.aum)} />
-            <Metric
-              label="Wtd. avg cap rate"
-              term="cap-rate"
-              value={pct(data.totals.weighted_avg_cap_rate)}
-              hint="On this dashboard: going-in cap rates weighted by purchase price, excluding passed deals."
-            />
-            <Metric label="Median levered IRR" term="irr" value={pct(data.totals.irr_median, 1)} hint="On this dashboard: base scenarios, latest calculation." />
-            <Metric
-              label="IRR range"
-              value={
-                <span className="text-base">
-                  {pct(data.totals.irr_min, 1)} – {pct(data.totals.irr_max, 1)}
-                </span>
-              }
-            />
-          </div>
-
-          <div className="grid gap-4 xl:grid-cols-3">
-            <Card className="xl:col-span-2">
-              <CardHeader>
-                <CardTitle>Pipeline by stage</CardTitle>
-                <CardDescription>Deal volume (purchase price) at each stage.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="h-56">
-                  <ResponsiveContainer>
-                    <BarChart data={data.pipeline.map((p) => ({ ...p, label: STATUS_LABELS[p.status] }))} barCategoryGap="30%">
-                      <CartesianGrid {...GRID_PROPS} />
-                      <XAxis dataKey="label" {...AXIS_PROPS} />
-                      <YAxis {...AXIS_PROPS} tickFormatter={(v) => usdShort(v)} width={64} axisLine={false} />
-                      <Tooltip cursor={{ fill: "var(--muted)" }} content={<ChartTooltip format={usdShort} />} />
-                      <Bar dataKey="volume" name="Volume" fill={SERIES[0]} radius={BAR_RADIUS} maxBarSize={48} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-                <div className="mt-3 grid grid-cols-5 gap-2 text-center text-xs">
-                  {data.pipeline.map((p) => (
-                    <Link
-                      key={p.status}
-                      href={`/deals?status=${p.status}`}
-                      className="rounded-md border px-2 py-1.5 transition-colors hover:bg-muted"
-                    >
-                      <div className="text-muted-foreground">{STATUS_LABELS[p.status]}</div>
-                      <div className="text-sm font-semibold tabular">{p.count}</div>
-                    </Link>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader>
-                <CardTitle>Exposure by property type</CardTitle>
-                <CardDescription>Share of purchase price, excluding passed deals.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <ExposureBars rows={data.exposure_by_type.map((r) => ({ ...r, key: TYPE_LABELS[r.key] ?? r.key }))} />
-                <div className="mt-5 mb-2 text-xs font-medium text-muted-foreground">By state</div>
-                <ExposureBars rows={data.exposure_by_state} />
-              </CardContent>
-            </Card>
-          </div>
-
-          <div className="grid gap-4 xl:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle>Alerts</CardTitle>
-                <CardDescription>Risk-screen flags and projected covenant breaches.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {data.alerts.length === 0 && <p className="text-sm text-muted-foreground">No alerts. All deals clear the screening thresholds.</p>}
-                {data.alerts.map((a, i) => (
-                  <Link
-                    key={i}
-                    href={`/deals/${a.property_id}`}
-                    className="flex items-start gap-3 rounded-md border px-3 py-2.5 text-sm transition-colors hover:bg-muted"
-                  >
-                    <AlertTriangle className={a.severity === "high" ? "mt-0.5 size-4 text-destructive" : "mt-0.5 size-4 text-warning"} aria-label={a.severity} />
-                    <div className="min-w-0">
-                      <div className="font-medium">{stripDemo(a.name)}</div>
-                      <div className="text-muted-foreground">{a.message}</div>
-                    </div>
-                    <Badge variant={a.severity === "high" ? "danger" : "warning"} className="ml-auto shrink-0">
-                      {a.severity}
-                    </Badge>
-                  </Link>
-                ))}
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader>
-                <CardTitle>Recent activity</CardTitle>
-                <CardDescription>Audit trail across the workspace.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <ol className="space-y-2.5">
-                  {data.recent_activity.map((a, i) => (
-                    <li key={i} className="flex items-start gap-3 text-sm">
-                      <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-accent" aria-hidden />
-                      <div className="min-w-0 flex-1">
-                        <span className="font-medium">{a.user_name ?? "System"}</span>{" "}
-                        <span className="text-muted-foreground">{ACTION_LABELS[a.action] ?? a.action}</span>{" "}
-                        {a.property_id && a.property_name ? (
-                          <Link href={`/deals/${a.property_id}`} className="font-medium hover:underline">
-                            {stripDemo(a.property_name)}
-                          </Link>
-                        ) : null}
-                      </div>
-                      <span className="shrink-0 text-xs text-muted-foreground">{relativeTime(a.created_at)}</span>
-                    </li>
-                  ))}
-                </ol>
-              </CardContent>
-            </Card>
-          </div>
-          <RecentDeals />
+          {layout.metrics.length > 0 && (
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">{layout.metrics.map((k) => metrics[k](data))}</div>
+          )}
+          {layout.sections.length > 0 && (
+            <div className="grid gap-4 xl:grid-cols-6">
+              {layout.sections.map((k) => (
+                <Fragment key={k}>{sections[k](data)}</Fragment>
+              ))}
+            </div>
+          )}
+          {layout.metrics.length + layout.sections.length === 0 && (
+            <p className="rounded-md border p-6 text-center text-sm text-muted-foreground">Everything is hidden in this view. Use Views → Customize to show cards and sections.</p>
+          )}
         </div>
       )}
     </>
