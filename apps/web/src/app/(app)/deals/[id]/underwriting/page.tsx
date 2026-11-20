@@ -7,6 +7,7 @@ import { toast } from "sonner";
 
 import { Callout, ErrorBlock, LoadingBlock } from "@/components/common";
 import { AssumptionLibraries } from "@/components/assumption-libraries";
+import { VersionHistory } from "@/components/version-history";
 import { useDeal } from "@/components/deal-context";
 import { CashFlowChart, CashFlowTable, ExitSummary, HeadlineMetrics, RiskPanel, SectionCard, SourcesUses } from "@/components/deal-widgets";
 import { NumberField } from "@/components/fields";
@@ -156,6 +157,7 @@ function Editor({ scenario, onScenarioChange }: { scenario: Scenario; onScenario
                 <Button size="sm" variant="ghost" disabled={!dirty} onClick={() => setDraft(structuredClone(scenario.assumptions))}>
                   <RotateCcw /> Discard
                 </Button>
+                <VersionHistory scenarioId={scenario.id} scenarioName={scenario.name} canEdit={canEdit} dirty={dirty} />
                 {canEdit && <AssumptionLibraries scenario={scenario} propertyType={property.property_type} dirty={dirty} />}
                 {canEdit && (
                   <Button size="sm" disabled={!dirty || hasErrors} loading={save.isPending} onClick={() => save.mutate()}>

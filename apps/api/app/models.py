@@ -252,6 +252,7 @@ class UnderwritingResult(Base):
     risk_score: Mapped[float | None] = mapped_column(Float)
     assumptions_snapshot: Mapped[dict[str, Any]] = mapped_column(JSONType, nullable=False)
     full_cashflow_json: Mapped[dict[str, Any]] = mapped_column(JSONType, nullable=False)
+    label: Mapped[str | None] = mapped_column(String(120))  # set when someone saves this as a named version
 
 
 class FinancingStructure(Base, TimestampMixin):

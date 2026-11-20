@@ -55,6 +55,7 @@ export const HELP: { pattern: RegExp; topic: HelpTopic }[] = [
         "Yellow flags mark aggressive assumptions (for example rent growth above 8% or an exit cap below 3.5%).",
         "Open Model to see the year-by-year cash flow.",
         "Libraries: save your standard assumptions once and apply them to any deal in one click.",
+        "History: every calculation is kept. Name versions (e.g. 'Sent to lender'), compare any two, or restore an earlier one.",
       ],
       terms: ["noi", "vacancy", "expense-ratio", "exit-cap", "dscr"],
     },
@@ -191,6 +192,18 @@ export const HELP: { pattern: RegExp; topic: HelpTopic }[] = [
         "Alerts list deals whose risk screen or covenants need attention.",
       ],
       terms: ["pipeline", "aum", "cap-rate", "irr"],
+    },
+  },
+  {
+    pattern: /^\/documents/,
+    topic: {
+      title: "Document queue",
+      summary: "Every document across your deals and whether it has been processed.",
+      steps: [
+        "Filter by status to find documents that failed or are still waiting.",
+        "Tick documents (up to 100) and click Re-process; deals at Investment Committee are processed first.",
+        "Retry failed re-runs every failed document in one go.",
+      ],
     },
   },
   {
