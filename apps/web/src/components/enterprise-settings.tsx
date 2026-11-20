@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, Copy, Download, KeyRound, Plus, ShieldCheck } from "lucide-react";
+import { Check, Copy, Download, KeyRound, Plus, ShieldCheck, Webhook } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -355,5 +355,191 @@ export function AuditExport() {
         <Download /> JSON
       </Button>
     </div>
+  );
+}
+
+// ------------------------------------------------------------------ webhooks
+interface WebhookRow {
+  id: string;
+  url: string;
+  description: string | null;
+  events: string[];
+  active: boolean;
+  last_delivery_at: string | null;
+  last_status: string | null;
+  consecutive_failures: number;
+}
+
+export function WebhooksTab() {
+  const org = useOrgKey();
+  const qc = useQueryClient();
+  const { hasRole } = useAuth();
+  const [open, setOpen] = useState(false);
+  const [url, setUrl] = useState("");
+  const [description, setDescription] = useState("");
+  const [events, setEvents] = useState<string[]>(["deal.stage_changed"]);
+  const [secret, setSecret] = useState<string | null>(null);
+  const { data, isLoading, error } = useQuery({
+    queryKey: [org, "webhooks"],
+    queryFn: () => api<{ webhooks: WebhookRow[]; events: Record<string, string>; signature: string }>("/api/org/webhooks"),
+    enabled: hasRole("admin"),
+  });
+  const refresh = () => qc.invalidateQueries({ queryKey: [org, "webhooks"] });
+  const create = useMutation({
+    mutationFn: () => api<WebhookRow & { secret: string }>("/api/org/webhooks", { body: { url: url.trim(), description: description.trim() || null, events } }),
+    onSuccess: (h) => {
+      refresh();
+      setSecret(h.secret);
+      setUrl("");
+      setDescription("");
+    },
+    onError: (e) => toast.error(e.message),
+  });
+  const update = useMutation({
+    mutationFn: ({ id, active }: { id: string; active: boolean }) => api(`/api/org/webhooks/${id}`, { method: "PATCH", body: { active } }),
+    onSuccess: refresh,
+    onError: (e) => toast.error(e.message),
+  });
+  const remove = useMutation({
+    mutationFn: (id: string) => api(`/api/org/webhooks/${id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      refresh();
+      toast.success("Webhook deleted");
+    },
+    onError: (e) => toast.error(e.message),
+  });
+  const test = useMutation({
+    mutationFn: (id: string) => api<{ ok: boolean; status: string }>(`/api/org/webhooks/${id}/test`, { method: "POST" }),
+    onSuccess: (r) => {
+      refresh();
+      if (r.ok) toast.success(`Test delivered (${r.status})`);
+      else toast.error(`Test failed: ${r.status}`);
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  if (!hasRole("admin")) return <Callout>Only owners and admins can manage webhooks.</Callout>;
+  if (isLoading) return <LoadingBlock rows={3} />;
+  if (error) return <ErrorBlock error={error} />;
+  const close = (o: boolean) => {
+    setOpen(o);
+    if (!o) setSecret(null);
+  };
+
+  return (
+    <Card>
+      <CardHeader className="gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <CardTitle>Webhooks</CardTitle>
+          <CardDescription>Notify another system, such as a CRM, Slack workflow or data pipeline, when something happens here.</CardDescription>
+        </div>
+        <Button onClick={() => setOpen(true)}>
+          <Plus /> New webhook
+        </Button>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {data && (
+          <Callout title="How deliveries work">
+            Axiom sends a JSON <code className="rounded bg-muted px-1">POST</code> to your https:// address after the change is saved. Verify each
+            request with your webhook secret: <code className="rounded bg-muted px-1 text-[11px]">{data.signature}</code>. Only public https addresses
+            are allowed, and a webhook switches itself off after 10 failed deliveries in a row.
+          </Callout>
+        )}
+        {data?.webhooks.length === 0 ? (
+          <EmptyState icon={Webhook} title="No webhooks yet" description="Add one to push deal stage changes or new reports to another system." />
+        ) : (
+          <ul className="space-y-3">
+            {data?.webhooks.map((h) => (
+              <li key={h.id} className="rounded-md border p-3">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <code className="truncate text-sm">{h.url}</code>
+                      <Badge variant={h.active ? "success" : "outline"}>{h.active ? "Active" : "Off"}</Badge>
+                    </div>
+                    {h.description && <p className="mt-0.5 text-xs text-muted-foreground">{h.description}</p>}
+                    <div className="mt-1.5 flex flex-wrap gap-1">
+                      {h.events.map((e) => (
+                        <Badge key={e} variant="outline">
+                          {e}
+                        </Badge>
+                      ))}
+                    </div>
+                    <p className="mt-1.5 text-xs text-muted-foreground">
+                      {h.last_delivery_at ? `Last delivery ${relativeTime(h.last_delivery_at)}: ${h.last_status}` : "No deliveries yet"}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 gap-1.5">
+                    <Button size="sm" variant="outline" loading={test.isPending && test.variables === h.id} onClick={() => test.mutate(h.id)}>
+                      Send test
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => update.mutate({ id: h.id, active: !h.active })}>
+                      {h.active ? "Turn off" : "Turn on"}
+                    </Button>
+                    <Button size="sm" variant="ghost" className="text-destructive" onClick={() => confirm(`Delete the webhook to ${h.url}?`) && remove.mutate(h.id)}>
+                      Delete
+                    </Button>
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </CardContent>
+
+      <Dialog open={open} onOpenChange={close}>
+        <DialogContent title={secret ? "Save your webhook secret" : "New webhook"} description={secret ? "Use this secret to verify that requests come from Axiom. It's only shown once." : "Axiom will POST signed JSON to this address."} className="max-w-lg">
+          {secret ? (
+            <div className="space-y-3">
+              <Input readOnly value={secret} className="font-mono text-xs" aria-label="Webhook secret" onFocus={(e) => e.target.select()} />
+              <div className="flex justify-end">
+                <Button onClick={() => close(false)}>Done</Button>
+              </div>
+            </div>
+          ) : (
+            <form
+              className="space-y-3"
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (url.trim() && events.length) create.mutate();
+              }}
+            >
+              <div className="space-y-1.5">
+                <Label htmlFor="wh-url">Endpoint URL</Label>
+                <Input id="wh-url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://example.com/axiom-webhook" required maxLength={500} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="wh-desc">Description (optional)</Label>
+                <Input id="wh-desc" value={description} onChange={(e) => setDescription(e.target.value)} maxLength={200} placeholder="e.g. CRM pipeline sync" />
+              </div>
+              <fieldset>
+                <legend className="mb-1.5 text-sm font-medium">Events</legend>
+                <div className="space-y-1.5">
+                  {Object.entries(data?.events ?? {}).map(([key, label]) => (
+                    <label key={key} className="flex items-start gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        className="mt-1"
+                        checked={events.includes(key)}
+                        onChange={(e) => setEvents(e.target.checked ? [...events, key] : events.filter((x) => x !== key))}
+                      />
+                      <span>
+                        <code className="text-xs">{key}</code>
+                        <span className="block text-xs text-muted-foreground">{label}</span>
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+              <div className="flex justify-end">
+                <Button type="submit" disabled={!url.trim() || !events.length} loading={create.isPending}>
+                  Add webhook
+                </Button>
+              </div>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
+    </Card>
   );
 }

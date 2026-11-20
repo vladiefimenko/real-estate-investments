@@ -62,6 +62,15 @@ class OrgContext:
     ) -> None:
         if self.api_key_id is not None:
             details = {**details, "via_api_key": str(self.api_key_id)}
+        from .services import webhooks
+
+        hook_event = webhooks.event_for(action, details)
+        if hook_event:  # delivered only after this session commits
+            webhooks.queue(self.db, self.org.id, hook_event, {
+                "action": action, "entity_type": entity_type,
+                "entity_id": str(entity_id) if entity_id is not None else None,
+                "property_id": str(property_id) if property_id else None,
+                "actor": self.user.name, "details": details})
         self.db.add(
             AuditLog(
                 org_id=self.org.id,

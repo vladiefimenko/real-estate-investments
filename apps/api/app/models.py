@@ -332,6 +332,23 @@ class ApiKey(Base):
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
+class Webhook(Base, TimestampMixin):
+    """An outbound HTTPS endpoint notified (with an HMAC signature) when selected events happen."""
+
+    __tablename__ = "webhooks"
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=new_id)
+    org_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("organizations.id", ondelete="CASCADE"), index=True)
+    url: Mapped[str] = mapped_column(String(500), nullable=False)
+    description: Mapped[str | None] = mapped_column(String(200))
+    events: Mapped[list[str]] = mapped_column(JSONType, nullable=False)
+    secret_encrypted: Mapped[str] = mapped_column(Text, nullable=False)
+    active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    created_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    last_delivery_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_status: Mapped[str | None] = mapped_column(String(200))
+    consecutive_failures: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+
 class StoredObject(Base):
     """Encrypted file contents for the ``database`` storage backend.
 
@@ -349,6 +366,7 @@ class StoredObject(Base):
 # Tables protected by Postgres RLS (see alembic migration 0001).
 RLS_TABLES = (
     "assumption_libraries",
+    "webhooks",
     "properties",
     "documents",
     "document_pages",
