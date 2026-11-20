@@ -11,7 +11,7 @@ from fastapi.responses import Response as RawResponse
 from sqlalchemy import select
 
 from ..config import get_settings
-from ..deps import OrgContext, analyst, viewer
+from ..deps import OrgContext, analyst, deal_reader, viewer
 from ..models import Document, DocumentPage, ExtractedData, Scenario, utcnow
 from ..schemas import (
     ApplyExtractionsIn,
@@ -36,6 +36,10 @@ def _doc(ctx: OrgContext, document_id: uuid.UUID) -> Document:
     doc = ctx.db.get(Document, document_id)
     if doc is None or doc.org_id != ctx.org.id or doc.deleted_at is not None:
         raise HTTPException(404, "Document not found")
+    try:
+        ctx.get_property(doc.property_id)  # deleted deals, and deals not shared with an external member
+    except HTTPException as exc:
+        raise HTTPException(404, "Document not found") from exc
     return doc
 
 
@@ -75,14 +79,14 @@ async def upload_document(
 
 
 @router.get("/properties/{property_id}/documents", response_model=list[DocumentOut])
-def list_documents(property_id: uuid.UUID, ctx: OrgContext = Depends(viewer)):
+def list_documents(property_id: uuid.UUID, ctx: OrgContext = Depends(deal_reader)):
     prop = ctx.get_property(property_id)
     return ctx.db.scalars(select(Document).where(Document.property_id == prop.id, Document.deleted_at.is_(None))
                           .order_by(Document.created_at.desc())).all()
 
 
 @router.get("/documents/{document_id}", response_model=DocumentOut)
-def get_document(document_id: uuid.UUID, ctx: OrgContext = Depends(viewer)):
+def get_document(document_id: uuid.UUID, ctx: OrgContext = Depends(deal_reader)):
     return _doc(ctx, document_id)
 
 
@@ -106,14 +110,14 @@ def delete_document(document_id: uuid.UUID, ctx: OrgContext = Depends(analyst)):
 
 
 @router.get("/documents/{document_id}/url")
-def document_url(document_id: uuid.UUID, download: bool = False, ctx: OrgContext = Depends(viewer)):
+def document_url(document_id: uuid.UUID, download: bool = False, ctx: OrgContext = Depends(deal_reader)):
     doc = _doc(ctx, document_id)
     return {"url": get_storage().signed_url(doc.file_url, doc.name, doc.mime_type, inline=not download),
             "expires_in": get_settings().signed_url_seconds}
 
 
 @router.get("/documents/{document_id}/pages", response_model=list[PageOut])
-def document_pages(document_id: uuid.UUID, ctx: OrgContext = Depends(viewer)):
+def document_pages(document_id: uuid.UUID, ctx: OrgContext = Depends(deal_reader)):
     doc = _doc(ctx, document_id)
     pages = ctx.db.scalars(select(DocumentPage).where(DocumentPage.document_id == doc.id)
                            .order_by(DocumentPage.page_number)).all()
@@ -167,7 +171,7 @@ def extraction_fields():
 
 
 @router.get("/documents/{document_id}/extractions", response_model=list[ExtractionOut])
-def document_extractions(document_id: uuid.UUID, ctx: OrgContext = Depends(viewer)):
+def document_extractions(document_id: uuid.UUID, ctx: OrgContext = Depends(deal_reader)):
     doc = _doc(ctx, document_id)
     rows = ctx.db.scalars(select(ExtractedData).where(ExtractedData.document_id == doc.id)).all()
     order = list(FIELDS)
@@ -175,7 +179,7 @@ def document_extractions(document_id: uuid.UUID, ctx: OrgContext = Depends(viewe
 
 
 @router.get("/properties/{property_id}/extractions", response_model=list[ExtractionOut])
-def property_extractions(property_id: uuid.UUID, status: str | None = None, ctx: OrgContext = Depends(viewer)):
+def property_extractions(property_id: uuid.UUID, status: str | None = None, ctx: OrgContext = Depends(deal_reader)):
     prop = ctx.get_property(property_id)
     q = select(ExtractedData).where(ExtractedData.property_id == prop.id)
     if status:

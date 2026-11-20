@@ -13,9 +13,9 @@ from sqlalchemy.orm import Session
 
 from ..config import get_settings
 from ..db import get_db, set_tenant
-from ..deps import OrgContext, admin, get_current_user, owner, viewer
+from ..deps import OrgContext, admin, deal_reader, get_current_user, owner, viewer
 from ..features import FEATURES, PLANS, resolve_features
-from ..models import ROLE_RANK, AuditLog, Invitation, Organization, OrganizationMember, Property, User, utcnow
+from ..models import ROLE_RANK, AuditLog, DealShare, Invitation, Organization, OrganizationMember, Property, User, utcnow
 from ..schemas import (
     AcceptInvitationIn,
     InvitationCreated,
@@ -73,7 +73,7 @@ def update_org(body: OrgUpdate, ctx: OrgContext = Depends(admin)):
 
 
 @router.get("/features")
-def features(ctx: OrgContext = Depends(viewer)) -> dict[str, Any]:
+def features(ctx: OrgContext = Depends(deal_reader)) -> dict[str, Any]:
     enabled = resolve_features(ctx.org)
     return {k: {**{kk: vv for kk, vv in v.items()}, "enabled": enabled[k]} for k, v in FEATURES.items()}
 
@@ -127,6 +127,8 @@ def remove_member(user_id: uuid.UUID, ctx: OrgContext = Depends(admin)):
     if ctx.role == "admin" and m.role == "admin" and m.user_id != ctx.user.id:
         raise HTTPException(403, "Admins cannot remove other admins")
     ctx.db.delete(m)
+    for share in ctx.db.scalars(select(DealShare).where(DealShare.org_id == ctx.org.id, DealShare.user_id == user_id)):
+        ctx.db.delete(share)  # a removed external member keeps no access to shared deals
     ctx.audit("member.remove", "member", user_id)
     ctx.db.commit()
     return Response(status_code=204)

@@ -7,7 +7,8 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { api, getOrgId, onSessionExpired, refreshSession, setAccessToken, setOrgId } from "./api";
 import type { Me, Membership, Role } from "./types";
 
-const RANK: Record<Role, number> = { viewer: 0, analyst: 1, admin: 2, owner: 3 };
+// External members rank below viewers; the API only lets them read deals shared with them.
+const RANK: Record<Role, number> = { external: -1, viewer: 0, auditor: 0, analyst: 1, admin: 2, owner: 3 };
 
 interface AuthState {
   status: "loading" | "authenticated" | "anonymous";

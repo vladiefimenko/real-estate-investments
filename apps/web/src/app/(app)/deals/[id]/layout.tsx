@@ -8,6 +8,7 @@ import { toast } from "sonner";
 
 import { Callout, ErrorBlock, LoadingBlock, StatusBadge } from "@/components/common";
 import { DealContext } from "@/components/deal-context";
+import { ShareDeal } from "@/components/share-deal";
 import { Button } from "@/components/ui/button";
 import { Badge, Select } from "@/components/ui/primitives";
 import { useFeatures, useOrgKey, useProperty, useScenarios } from "@/hooks/queries";
@@ -15,6 +16,9 @@ import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { STATUS_LABELS, STATUSES, stripDemo, TYPE_LABELS } from "@/lib/format";
 import { cn } from "@/lib/utils";
+
+// Tabs an external member (lender/partner) can open; the others call endpoints they can't use.
+const EXTERNAL_TABS = new Set(["", "documents", "scenarios", "financing", "valuation", "reports"]);
 
 const TABS: { slug: string; label: string; feature?: string }[] = [
   { slug: "", label: "Overview" },
@@ -33,7 +37,8 @@ export default function DealLayout({ children }: { children: React.ReactNode }) 
   const { id } = useParams<{ id: string }>();
   const pathname = usePathname();
   const router = useRouter();
-  const { hasRole } = useAuth();
+  const { hasRole, org: membership } = useAuth();
+  const isExternal = membership?.role === "external";
   const org = useOrgKey();
   const qc = useQueryClient();
   const property = useProperty(id);
@@ -106,6 +111,7 @@ export default function DealLayout({ children }: { children: React.ReactNode }) 
                   </option>
                 ))}
               </Select>
+              {canDelete && <ShareDeal propertyId={p.id} dealName={stripDemo(p.name)} />}
               {canDelete && (
                 <Button
                   variant="outline"
@@ -130,7 +136,7 @@ export default function DealLayout({ children }: { children: React.ReactNode }) 
           </Callout>
         )}
         <nav className="mt-4 flex gap-1 overflow-x-auto border-b" aria-label="Deal sections">
-          {TABS.filter((t) => !t.feature || features.data?.[t.feature]?.enabled !== false).map((t) => {
+          {TABS.filter((t) => (!t.feature || features.data?.[t.feature]?.enabled !== false) && (!isExternal || EXTERNAL_TABS.has(t.slug))).map((t) => {
             const active = current === t.slug;
             return (
               <Link

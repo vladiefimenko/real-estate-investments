@@ -16,7 +16,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .db import get_db, set_tenant
-from .models import ROLE_RANK, ApiKey, AuditLog, Organization, OrganizationMember, Property, User, utcnow
+from .models import ROLE_RANK, ApiKey, AuditLog, DealShare, Organization, OrganizationMember, Property, User, utcnow
 from .security import decode_access_token, hash_token
 
 bearer = HTTPBearer(auto_error=False)
@@ -83,9 +83,16 @@ class OrgContext:
             )
         )
 
+    @property
+    def is_external(self) -> bool:
+        return self.role == "external"
+
     def get_property(self, property_id: uuid.UUID) -> Property:
         prop = self.db.get(Property, property_id)
         if prop is None or prop.org_id != self.org.id or prop.deleted_at is not None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Property not found")
+        if self.is_external and not self.db.scalar(select(DealShare.id).where(
+                DealShare.property_id == prop.id, DealShare.user_id == self.user.id)):
             raise HTTPException(status.HTTP_404_NOT_FOUND, "Property not found")
         return prop
 
@@ -177,7 +184,17 @@ def require_role(role: str):
     return dep
 
 
+# Deal-scoped, read-only routes that external members may use (still limited to shared deals
+# by OrgContext.get_property). Every other route keeps `viewer` or higher, which excludes them.
+deal_reader = require_role("external")
 viewer = require_role("viewer")
 analyst = require_role("analyst")
 admin = require_role("admin")
 owner = require_role("owner")
+
+
+def audit_reader(ctx: OrgContext = Depends(get_org_context)) -> OrgContext:
+    """Owners, admins and auditors: the full audit trail and usage, without edit rights."""
+    if ctx.role not in ("owner", "admin", "auditor"):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Requires admin or auditor role")
+    return ctx

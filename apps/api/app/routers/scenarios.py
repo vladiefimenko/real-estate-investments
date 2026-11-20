@@ -10,7 +10,7 @@ from axiom_engine.scenarios import DEFAULT_SCENARIO_SHIFTS, shift_assumptions
 from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy import select
 
-from ..deps import OrgContext, analyst, viewer
+from ..deps import OrgContext, analyst, deal_reader, viewer
 from ..features import require_feature
 from ..models import Scenario, UnderwritingResult, utcnow
 from ..schemas import CalculateIn, ResultOut, ScenarioIn, ScenarioOut, ScenarioUpdate
@@ -33,7 +33,7 @@ def calculate_preview(body: CalculateIn, ctx: OrgContext = Depends(viewer)):
 
 
 @router.get("/properties/{property_id}/scenarios", response_model=list[ScenarioOut])
-def list_scenarios(property_id: uuid.UUID, ctx: OrgContext = Depends(viewer)):
+def list_scenarios(property_id: uuid.UUID, ctx: OrgContext = Depends(deal_reader)):
     prop = ctx.get_property(property_id)
     return ctx.db.scalars(select(Scenario).where(Scenario.property_id == prop.id, Scenario.deleted_at.is_(None))
                           .order_by(Scenario.is_base.desc(), Scenario.created_at)).all()
@@ -89,7 +89,7 @@ def _scenario(ctx: OrgContext, scenario_id: uuid.UUID) -> Scenario:
 
 
 @router.get("/scenarios/{scenario_id}", response_model=ScenarioOut)
-def get_scenario_route(scenario_id: uuid.UUID, ctx: OrgContext = Depends(viewer)):
+def get_scenario_route(scenario_id: uuid.UUID, ctx: OrgContext = Depends(deal_reader)):
     return _scenario(ctx, scenario_id)
 
 
@@ -149,7 +149,7 @@ def run_scenario(scenario_id: uuid.UUID, ctx: OrgContext = Depends(analyst)):
 
 
 @router.get("/scenarios/{scenario_id}/result")
-def scenario_result(scenario_id: uuid.UUID, ctx: OrgContext = Depends(viewer)):
+def scenario_result(scenario_id: uuid.UUID, ctx: OrgContext = Depends(deal_reader)):
     """Latest stored result with the full cash flow, audit trace and assumption snapshot."""
     sc = _scenario(ctx, scenario_id)
     prop = ctx.get_property(sc.property_id)
@@ -165,14 +165,14 @@ def scenario_result(scenario_id: uuid.UUID, ctx: OrgContext = Depends(viewer)):
 
 
 @router.get("/properties/{property_id}/results", response_model=list[ResultOut])
-def result_history(property_id: uuid.UUID, limit: int = 50, ctx: OrgContext = Depends(viewer)):
+def result_history(property_id: uuid.UUID, limit: int = 50, ctx: OrgContext = Depends(deal_reader)):
     prop = ctx.get_property(property_id)
     return ctx.db.scalars(select(UnderwritingResult).where(UnderwritingResult.property_id == prop.id)
                           .order_by(UnderwritingResult.calculated_at.desc()).limit(min(limit, 200))).all()
 
 
 @router.get("/properties/{property_id}/scenario-comparison")
-def scenario_comparison(property_id: uuid.UUID, ctx: OrgContext = Depends(viewer)):
+def scenario_comparison(property_id: uuid.UUID, ctx: OrgContext = Depends(deal_reader)):
     """Headline metrics for every scenario of a deal, side by side."""
     from ..services.underwriting import ensure_result, headline, latest_result
 
@@ -192,7 +192,7 @@ def scenario_comparison(property_id: uuid.UUID, ctx: OrgContext = Depends(viewer
 
 
 @router.get("/scenarios/{scenario_id}/explain")
-def explain(scenario_id: uuid.UUID, ctx: OrgContext = Depends(viewer)):
+def explain(scenario_id: uuid.UUID, ctx: OrgContext = Depends(deal_reader)):
     """What differs from the base case, and how much each change alone moves levered IRR."""
     from ..services.scenario_insights import explain_scenario
 
@@ -205,7 +205,7 @@ def explain(scenario_id: uuid.UUID, ctx: OrgContext = Depends(viewer)):
 
 
 @router.get("/properties/{property_id}/tornado")
-def tornado_chart(property_id: uuid.UUID, scenario_id: uuid.UUID | None = None, ctx: OrgContext = Depends(viewer)):
+def tornado_chart(property_id: uuid.UUID, scenario_id: uuid.UUID | None = None, ctx: OrgContext = Depends(deal_reader)):
     """Rank the main assumptions by how much each moves IRR (one-at-a-time low/high engine runs)."""
     from ..services.scenario_insights import tornado
 

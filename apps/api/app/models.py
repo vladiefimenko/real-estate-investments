@@ -44,8 +44,11 @@ class TimestampMixin:
     )
 
 
-ROLES = ("owner", "admin", "analyst", "viewer")
-ROLE_RANK = {"viewer": 0, "analyst": 1, "admin": 2, "owner": 3}
+ROLES = ("owner", "admin", "analyst", "viewer", "auditor", "external")
+# "auditor" reads like a viewer and may also export the audit log and see usage.
+# "external" (a lender or partner) ranks below viewer: it is refused by every route
+# unless that route explicitly opts in, and then only sees deals shared with it.
+ROLE_RANK = {"external": -1, "viewer": 0, "auditor": 0, "analyst": 1, "admin": 2, "owner": 3}
 
 PROPERTY_STATUSES = ("sourcing", "underwriting", "ic", "closed", "passed")
 
@@ -349,6 +352,19 @@ class Webhook(Base, TimestampMixin):
     consecutive_failures: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
 
+class DealShare(Base):
+    """Grants one external member read access to one deal."""
+
+    __tablename__ = "deal_shares"
+    __table_args__ = (UniqueConstraint("property_id", "user_id", name="uq_deal_share"),)
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=new_id)
+    org_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("organizations.id", ondelete="CASCADE"), index=True)
+    property_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("properties.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    created_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+
 class StoredObject(Base):
     """Encrypted file contents for the ``database`` storage backend.
 
@@ -366,6 +382,7 @@ class StoredObject(Base):
 # Tables protected by Postgres RLS (see alembic migration 0001).
 RLS_TABLES = (
     "assumption_libraries",
+    "deal_shares",
     "webhooks",
     "properties",
     "documents",

@@ -108,6 +108,7 @@ function OrgSwitcher() {
 
 function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
+  const { org } = useAuth();
   return (
     <div className="flex h-full flex-col bg-sidebar px-3 py-4 text-sidebar-foreground">
       <div className="mb-5 px-2">
@@ -117,7 +118,7 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
       </div>
       <OrgSwitcher />
       <nav className="mt-5 flex flex-col gap-0.5" aria-label="Main">
-        {NAV.map(({ href, label, icon: Icon }) => {
+        {NAV.filter(({ href }) => org?.role !== "external" || href === "/deals" || href === "/glossary").map(({ href, label, icon: Icon }) => {
           const active = pathname === href || pathname.startsWith(`${href}/`);
           return (
             <Link
@@ -144,16 +145,25 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   );
 }
 
+// Pages an external member (lender/partner) can use; everything else needs a workspace role.
+const EXTERNAL_PATHS = ["/deals", "/glossary"];
+
 export function AppShell({ children }: { children: React.ReactNode }) {
-  const { status, me, logout } = useAuth();
+  const { status, me, org, logout } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const externalBlocked = org?.role === "external" && !EXTERNAL_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 
   useEffect(() => {
     if (status === "anonymous") router.replace("/login");
   }, [status, router]);
 
-  if (status !== "authenticated" || !me) {
+  useEffect(() => {
+    if (externalBlocked) router.replace("/deals");
+  }, [externalBlocked, router]);
+
+  if (status !== "authenticated" || !me || externalBlocked) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <div className="flex items-center gap-3 text-sm text-muted-foreground">

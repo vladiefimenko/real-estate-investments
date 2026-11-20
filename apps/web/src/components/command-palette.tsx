@@ -65,7 +65,8 @@ function typingTarget(t: EventTarget | null) {
 export function CommandPalette() {
   const router = useRouter();
   const pathname = usePathname();
-  const { hasRole } = useAuth();
+  const { hasRole, org } = useAuth();
+  const external = org?.role === "external";
   const [open, setOpen] = useState(false);
   const [help, setHelp] = useState(false);
   const [query, setQuery] = useState("");
@@ -135,7 +136,8 @@ export function CommandPalette() {
       ["/glossary", "Glossary", BookOpen, "G G"],
       ["/settings", "Settings", Settings, "G S"],
     ];
-    for (const [href, label, icon, hint] of nav) out.push({ id: href, group: "Go to", label, hint, icon, run: go(href) });
+    for (const [href, label, icon, hint] of nav)
+      if (!external || href === "/deals" || href === "/glossary") out.push({ id: href, group: "Go to", label, hint, icon, run: go(href) });
     for (const d of deals.data ?? [])
       out.push({
         id: `deal-${d.id}`,
@@ -148,7 +150,7 @@ export function CommandPalette() {
       });
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [deals.data, pathname, canCreate]);
+  }, [deals.data, pathname, canCreate, external]);
 
   const q = query.trim().toLowerCase();
   const results = q

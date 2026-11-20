@@ -13,7 +13,7 @@ from fastapi.responses import Response, StreamingResponse
 from sqlalchemy import select
 
 from ..db import SessionLocal, set_tenant
-from ..deps import OrgContext, analyst, viewer
+from ..deps import OrgContext, analyst, deal_reader, viewer
 from ..features import require_feature
 from ..models import ChatMessage, Property
 from ..schemas import ChatIn, ChatMessageOut
@@ -47,7 +47,7 @@ def _irr_sensitivity(a: dict) -> dict | None:
 
 
 @router.get("/properties/{property_id}/reports/excel")
-def export_excel(property_id: uuid.UUID, scenario_id: uuid.UUID | None = None, ctx: OrgContext = Depends(viewer)):
+def export_excel(property_id: uuid.UUID, scenario_id: uuid.UUID | None = None, ctx: OrgContext = Depends(deal_reader)):
     prop, sc, result = _load(ctx, property_id, scenario_id)
     data = build_workbook(prop, sc.name, sc.assumptions_json, result, _irr_sensitivity(sc.assumptions_json))
     ctx.audit("report.excel", "property", prop.id, property_id=prop.id, scenario=sc.name)
@@ -58,7 +58,7 @@ def export_excel(property_id: uuid.UUID, scenario_id: uuid.UUID | None = None, c
 
 @router.get("/properties/{property_id}/reports/one-pager")
 def export_one_pager(property_id: uuid.UUID, scenario_id: uuid.UUID | None = None,
-                     ctx: OrgContext = Depends(viewer)):
+                     ctx: OrgContext = Depends(deal_reader)):
     prop, sc, result = _load(ctx, property_id, scenario_id)
     data = one_pager(prop, sc.name, result)
     ctx.audit("report.one_pager", "property", prop.id, property_id=prop.id, scenario=sc.name)
@@ -69,7 +69,7 @@ def export_one_pager(property_id: uuid.UUID, scenario_id: uuid.UUID | None = Non
 
 @router.get("/properties/{property_id}/reports/ic-memo")
 def export_ic_memo(property_id: uuid.UUID, scenario_id: uuid.UUID | None = None, ai_narrative: bool = False,
-                   ctx: OrgContext = Depends(viewer)):
+                   ctx: OrgContext = Depends(deal_reader)):
     require_feature(ctx.org, "ic_memo")
     prop, sc, result = _load(ctx, property_id, scenario_id)
     scenarios = scenario_comparison(property_id, ctx)
@@ -91,7 +91,7 @@ def export_ic_memo(property_id: uuid.UUID, scenario_id: uuid.UUID | None = None,
 def export_junior_pack(property_id: uuid.UUID, scenario_id: uuid.UUID | None = None,
                        reviewed_by: str | None = Query(default=None, max_length=120),
                        note: str | None = Query(default=None, max_length=1500),
-                       ctx: OrgContext = Depends(viewer)):
+                       ctx: OrgContext = Depends(deal_reader)):
     """Cover note, deal summary, annotated assumptions and a glossary appendix for a junior analyst."""
     prop, sc, result = _load(ctx, property_id, scenario_id)
     data = junior_pack(prop, sc.name, result, prepared_by=ctx.user.name or ctx.user.email,
@@ -108,7 +108,7 @@ def export_presentation(property_id: uuid.UUID, scenario_id: uuid.UUID | None = 
                         title: str | None = Query(default=None, max_length=120),
                         prepared_for: str | None = Query(default=None, max_length=120),
                         firm_name: str | None = Query(default=None, max_length=80),
-                        include_risk: bool = True, ctx: OrgContext = Depends(viewer)):
+                        include_risk: bool = True, ctx: OrgContext = Depends(deal_reader)):
     """Landscape client presentation. Demo deals are always watermarked."""
     prop, sc, result = _load(ctx, property_id, scenario_id)
     clean = lambda v: (v or "").strip() or None  # noqa: E731
@@ -123,7 +123,7 @@ def export_presentation(property_id: uuid.UUID, scenario_id: uuid.UUID | None = 
 
 
 @router.get("/reports/summary-pack")
-def export_summary_pack(ids: str = Query(min_length=1, max_length=2000), ctx: OrgContext = Depends(viewer)):
+def export_summary_pack(ids: str = Query(min_length=1, max_length=2000), ctx: OrgContext = Depends(deal_reader)):
     """Comparison table plus a one-page summary for each selected deal (base scenarios, up to 25)."""
     try:
         wanted = list(dict.fromkeys(uuid.UUID(x) for x in ids.split(",") if x.strip()))

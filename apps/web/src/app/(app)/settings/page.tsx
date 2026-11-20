@@ -87,8 +87,15 @@ interface Billing {
 }
 
 // ---------------------------------------------------------------- helpers
-const ROLE_LABELS: Record<Role, string> = { owner: "Owner", admin: "Admin", analyst: "Analyst", viewer: "Viewer" };
-const RANK: Record<Role, number> = { viewer: 0, analyst: 1, admin: 2, owner: 3 };
+const ROLE_LABELS: Record<Role, string> = {
+  owner: "Owner",
+  admin: "Admin",
+  analyst: "Analyst",
+  viewer: "Viewer",
+  auditor: "Auditor",
+  external: "External",
+};
+const RANK: Record<Role, number> = { external: -1, viewer: 0, auditor: 0, analyst: 1, admin: 2, owner: 3 };
 const PLAN_ORDER = ["starter", "professional", "enterprise"];
 const TAB_KEYS = ["organization", "members", "billing", "features", "audit", "usage", "api-keys", "webhooks"] as const;
 type TabKey = (typeof TAB_KEYS)[number];
@@ -444,7 +451,9 @@ function MembersTab() {
     if (m.role === "admin") return isOwner;
     return true;
   };
-  const roleOptions: Role[] = isOwner ? ["owner", "admin", "analyst", "viewer"] : ["admin", "analyst", "viewer"];
+  const roleOptions: Role[] = isOwner
+    ? ["owner", "admin", "analyst", "viewer", "auditor", "external"]
+    : ["admin", "analyst", "viewer", "auditor", "external"];
   const plan = billing.data ? billing.data.plans[billing.data.plan] : undefined;
 
   return (
@@ -634,6 +643,8 @@ function InvitationsCard({ canInviteAdmin }: { canInviteAdmin: boolean }) {
             <Select id="invite-role" value={role} onChange={(e) => setRole(e.target.value as Role)}>
               <option value="analyst">Analyst</option>
               <option value="viewer">Viewer</option>
+              <option value="auditor">Auditor: read-only, plus audit export and usage</option>
+              <option value="external">External: lender or partner, sees only deals you share</option>
               <option value="admin" disabled={!canInviteAdmin}>
                 Admin{canInviteAdmin ? "" : " (owners only)"}
               </option>
