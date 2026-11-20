@@ -493,5 +493,36 @@ CREATE POLICY tenant_isolation ON webhooks USING (org_id = NULLIF(current_settin
 
 UPDATE alembic_version SET version_num='0006' WHERE alembic_version.version_num = '0005';
 
+-- Running upgrade 0006 -> 0007
+
+CREATE TABLE deal_shares (
+    id UUID NOT NULL, 
+    org_id UUID NOT NULL, 
+    property_id UUID NOT NULL, 
+    user_id UUID NOT NULL, 
+    created_by UUID, 
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL, 
+    PRIMARY KEY (id), 
+    FOREIGN KEY(created_by) REFERENCES users (id) ON DELETE SET NULL, 
+    FOREIGN KEY(org_id) REFERENCES organizations (id) ON DELETE CASCADE, 
+    FOREIGN KEY(property_id) REFERENCES properties (id) ON DELETE CASCADE, 
+    FOREIGN KEY(user_id) REFERENCES users (id) ON DELETE CASCADE, 
+    CONSTRAINT uq_deal_share UNIQUE (property_id, user_id)
+);
+
+CREATE INDEX ix_deal_shares_org_id ON deal_shares (org_id);
+
+CREATE INDEX ix_deal_shares_property_id ON deal_shares (property_id);
+
+CREATE INDEX ix_deal_shares_user_id ON deal_shares (user_id);
+
+ALTER TABLE deal_shares ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE deal_shares FORCE ROW LEVEL SECURITY;
+
+CREATE POLICY tenant_isolation ON deal_shares USING (org_id = NULLIF(current_setting('app.current_org_id', true), '')::uuid) WITH CHECK (org_id = NULLIF(current_setting('app.current_org_id', true), '')::uuid);
+
+UPDATE alembic_version SET version_num='0007' WHERE alembic_version.version_num = '0006';
+
 COMMIT;
 

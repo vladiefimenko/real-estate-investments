@@ -13,12 +13,14 @@ import { Switch } from "@/components/ui/overlays";
 import { Badge, Card, CardContent, CardDescription, CardHeader, CardTitle, Input, Label, Select, Textarea } from "@/components/ui/primitives";
 import { useFeature, useOrgKey } from "@/hooks/queries";
 import { api, download } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 import { stripDemo } from "@/lib/format";
 
 type ReportKey = "excel" | "one-pager" | "ic-memo" | "junior-pack" | "presentation";
 
 export default function ReportsPage() {
   const { property, scenarios, base } = useDeal();
+  const { hasRole } = useAuth();
   const org = useOrgKey();
   const qc = useQueryClient();
   const icEnabled = useFeature("ic_memo");
@@ -33,6 +35,7 @@ export default function ReportsPage() {
     queryKey: [org, "analyst-status"],
     queryFn: () => api<{ ai_available: boolean; model: string }>("/api/analyst/status"),
     staleTime: 60_000,
+    enabled: hasRole("viewer"), // external members can't use the analyst
   });
   const aiAvailable = status.data?.ai_available === true;
   const scenario = scenarios.find((s) => s.id === scenarioId);

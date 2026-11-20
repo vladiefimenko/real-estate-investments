@@ -15,7 +15,7 @@ from axiom_engine.valuation import valuation_summary
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy import select
 
-from ..deps import OrgContext, analyst, viewer
+from ..deps import OrgContext, analyst, deal_reader, viewer
 from ..features import require_feature
 from ..models import AuditLog, FinancingStructure, Property, User
 from ..schemas import FinancingIn, FinancingOut, MonteCarloIn, SensitivityIn
@@ -50,7 +50,7 @@ def _axis(base: dict, path: str, values: list[float] | None) -> list[float]:
 
 
 @router.post("/properties/{property_id}/sensitivity")
-def sensitivity(property_id: uuid.UUID, body: SensitivityIn, ctx: OrgContext = Depends(viewer)):
+def sensitivity(property_id: uuid.UUID, body: SensitivityIn, ctx: OrgContext = Depends(deal_reader)):
     require_feature(ctx.org, "scenarios")
     if body.metric not in SENSITIVITY_METRICS:
         raise HTTPException(422, f"metric must be one of {', '.join(SENSITIVITY_METRICS)}")
@@ -82,7 +82,7 @@ DEFAULT_MC = [
 
 
 @router.post("/properties/{property_id}/monte-carlo")
-def monte_carlo(property_id: uuid.UUID, body: MonteCarloIn, ctx: OrgContext = Depends(viewer)):
+def monte_carlo(property_id: uuid.UUID, body: MonteCarloIn, ctx: OrgContext = Depends(deal_reader)):
     require_feature(ctx.org, "monte_carlo")
     prop = ctx.get_property(property_id)
     sc = get_scenario(ctx, prop, body.scenario_id)
@@ -99,7 +99,7 @@ def monte_carlo(property_id: uuid.UUID, body: MonteCarloIn, ctx: OrgContext = De
 
 # --------------------------------------------------------------- valuation
 @router.get("/properties/{property_id}/valuation")
-def valuation(property_id: uuid.UUID, scenario_id: uuid.UUID | None = None, ctx: OrgContext = Depends(viewer)):
+def valuation(property_id: uuid.UUID, scenario_id: uuid.UUID | None = None, ctx: OrgContext = Depends(deal_reader)):
     require_feature(ctx.org, "valuation")
     prop = ctx.get_property(property_id)
     sc = get_scenario(ctx, prop, scenario_id)
@@ -158,7 +158,7 @@ def _structure_to_engine(f: FinancingStructure) -> dict[str, Any]:
 
 
 @router.get("/properties/{property_id}/financing", response_model=list[FinancingOut])
-def list_financing(property_id: uuid.UUID, ctx: OrgContext = Depends(viewer)):
+def list_financing(property_id: uuid.UUID, ctx: OrgContext = Depends(deal_reader)):
     prop = ctx.get_property(property_id)
     return ctx.db.scalars(select(FinancingStructure).where(FinancingStructure.property_id == prop.id)
                           .order_by(FinancingStructure.created_at)).all()

@@ -8,9 +8,9 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy import func, or_, select
 
-from ..deps import OrgContext, admin, analyst, viewer
+from ..deps import OrgContext, admin, analyst, deal_reader, viewer
 from ..features import PLANS
-from ..models import PROPERTY_STATUSES, Property, Scenario, UnderwritingResult, User
+from ..models import PROPERTY_STATUSES, DealShare, OrganizationMember, Property, Scenario, UnderwritingResult, User
 from ..schemas import PropertyCreate, PropertyOut, PropertySummary, PropertyUpdate
 from ..services.property_types import catalogue, default_assumptions
 from ..services.underwriting import headline, run_and_store, sync_property_to_scenarios
@@ -46,10 +46,12 @@ def list_properties(
     property_type: str | None = None,
     owner_id: uuid.UUID | None = None,
     q: str | None = None,
-    ctx: OrgContext = Depends(viewer),
+    ctx: OrgContext = Depends(deal_reader),
 ):
     stmt = select(Property, User.name).outerjoin(User, User.id == Property.owner_id).where(
         Property.org_id == ctx.org.id, Property.deleted_at.is_(None))
+    if ctx.is_external:  # lenders and partners see only the deals shared with them
+        stmt = stmt.where(Property.id.in_(select(DealShare.property_id).where(DealShare.user_id == ctx.user.id)))
     if status:
         stmt = stmt.where(Property.status.in_(status.split(",")))
     if property_type:
@@ -95,7 +97,7 @@ def create_property(body: PropertyCreate, ctx: OrgContext = Depends(analyst)):
 
 
 @router.get("/properties/{property_id}", response_model=PropertySummary)
-def get_property(property_id: uuid.UUID, ctx: OrgContext = Depends(viewer)):
+def get_property(property_id: uuid.UUID, ctx: OrgContext = Depends(deal_reader)):
     prop = ctx.get_property(property_id)
     owner = ctx.db.get(User, prop.owner_id) if prop.owner_id else None
     latest = _latest_by_property(ctx, [prop.id]).get(prop.id)
@@ -164,3 +166,48 @@ def _jsonable(v):
     if isinstance(v, (str, int, float, bool, dict, list)) or v is None:
         return v
     return str(v)
+
+
+# ------------------------------------------------------------------ sharing with external members
+class ShareIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    user_id: uuid.UUID
+
+
+@router.get("/properties/{property_id}/shares")
+def list_shares(property_id: uuid.UUID, ctx: OrgContext = Depends(admin)):
+    """External members of this workspace, and whether each can see this deal."""
+    prop = ctx.get_property(property_id)
+    shared = set(ctx.db.scalars(select(DealShare.user_id).where(DealShare.property_id == prop.id)))
+    rows = ctx.db.execute(select(User.id, User.name, User.email).join(
+        OrganizationMember, OrganizationMember.user_id == User.id).where(
+        OrganizationMember.org_id == ctx.org.id, OrganizationMember.role == "external").order_by(User.name)).all()
+    return [{"user_id": str(uid), "name": name, "email": email, "shared": uid in shared} for uid, name, email in rows]
+
+
+@router.post("/properties/{property_id}/shares", status_code=201)
+def share_deal(property_id: uuid.UUID, body: ShareIn, ctx: OrgContext = Depends(admin)):
+    prop = ctx.get_property(property_id)
+    member = ctx.db.scalars(select(OrganizationMember).where(
+        OrganizationMember.org_id == ctx.org.id, OrganizationMember.user_id == body.user_id)).first()
+    if member is None or member.role != "external":
+        raise HTTPException(422, "Deals can only be shared with external members of this workspace")
+    exists = ctx.db.scalar(select(DealShare.id).where(DealShare.property_id == prop.id,
+                                                      DealShare.user_id == body.user_id))
+    if not exists:
+        ctx.db.add(DealShare(org_id=ctx.org.id, property_id=prop.id, user_id=body.user_id, created_by=ctx.user.id))
+        ctx.audit("deal.share", "property", prop.id, property_id=prop.id, user_id=str(body.user_id))
+        ctx.db.commit()
+    return {"property_id": str(prop.id), "user_id": str(body.user_id), "shared": True}
+
+
+@router.delete("/properties/{property_id}/shares/{user_id}", status_code=204)
+def unshare_deal(property_id: uuid.UUID, user_id: uuid.UUID, ctx: OrgContext = Depends(admin)):
+    prop = ctx.get_property(property_id)
+    share = ctx.db.scalars(select(DealShare).where(DealShare.property_id == prop.id,
+                                                   DealShare.user_id == user_id)).first()
+    if share is not None:
+        ctx.db.delete(share)
+        ctx.audit("deal.unshare", "property", prop.id, property_id=prop.id, user_id=str(user_id))
+        ctx.db.commit()
+    return Response(status_code=204)

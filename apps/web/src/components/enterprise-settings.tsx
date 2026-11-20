@@ -53,14 +53,15 @@ function Stat({ label, value, sub }: { label: string; value: React.ReactNode; su
 
 export function UsageTab() {
   const org = useOrgKey();
-  const { hasRole } = useAuth();
+  const { hasRole, org: membership } = useAuth();
+  const allowed = hasRole("admin") || membership?.role === "auditor";
   const [days, setDays] = useState(30);
   const { data, isLoading, error } = useQuery({
     queryKey: [org, "usage", days],
     queryFn: () => api<Usage>(`/api/org/usage?days=${days}`),
-    enabled: hasRole("admin"),
+    enabled: allowed,
   });
-  if (!hasRole("admin")) return <Callout>Only owners and admins can see workspace usage.</Callout>;
+  if (!allowed) return <Callout>Only owners, admins and auditors can see workspace usage.</Callout>;
   if (isLoading) return <LoadingBlock rows={4} />;
   if (error) return <ErrorBlock error={error} />;
   if (!data) return null;
@@ -311,11 +312,11 @@ export function ApiKeysTab() {
 
 // ------------------------------------------------------------------ audit export
 export function AuditExport() {
-  const { hasRole } = useAuth();
+  const { hasRole, org } = useAuth();
   const [since, setSince] = useState("");
   const [until, setUntil] = useState("");
   const [busy, setBusy] = useState<"csv" | "json" | null>(null);
-  if (!hasRole("admin")) return null;
+  if (!hasRole("admin") && org?.role !== "auditor") return null;
   const run = async (format: "csv" | "json") => {
     setBusy(format);
     try {

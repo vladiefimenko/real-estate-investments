@@ -15,7 +15,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import func, select
 
-from ..deps import API_KEY_PATHS, API_KEY_PREFIX, API_KEY_RATE, OrgContext, admin
+from ..deps import API_KEY_PATHS, API_KEY_PREFIX, API_KEY_RATE, OrgContext, admin, audit_reader
 from ..models import ApiKey, AuditLog, Document, OrganizationMember, Property, User, utcnow
 from ..security import hash_token
 
@@ -99,7 +99,7 @@ EXPORT_FIELDS = ["created_at", "action", "entity_type", "entity_id", "property_i
 
 @router.get("/org/audit/export")
 def export_audit(format: str = Query("csv", pattern="^(csv|json)$"), since: str | None = None,
-                 until: str | None = None, ctx: OrgContext = Depends(admin)):
+                 until: str | None = None, ctx: OrgContext = Depends(audit_reader)):
     """The workspace's complete audit trail for compliance reviews. Each export is itself audited."""
     _require_human(ctx)
     start, end = _parse_day(since), _parse_day(until, end=True)
@@ -141,7 +141,7 @@ def export_audit(format: str = Query("csv", pattern="^(csv|json)$"), since: str 
 
 # ------------------------------------------------------------------ usage
 @router.get("/org/usage")
-def usage(days: int = 30, ctx: OrgContext = Depends(admin)):
+def usage(days: int = 30, ctx: OrgContext = Depends(audit_reader)):
     """Workspace usage for licensing and ROI: members, activity, deals, documents, reports, AI and API keys."""
     _require_human(ctx)
     days = max(1, min(days, 365))

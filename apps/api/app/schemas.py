@@ -11,7 +11,7 @@ from pydantic import BaseModel, ConfigDict, EmailStr, Field, computed_field, fie
 from .models import PROPERTY_STATUSES, ROLES
 from .services.property_types import PROPERTY_TYPES
 
-Role = Literal["owner", "admin", "analyst", "viewer"]
+Role = Literal["owner", "admin", "analyst", "viewer", "auditor", "external"]
 
 
 class ORM(BaseModel):

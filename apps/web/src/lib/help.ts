@@ -207,8 +207,9 @@ export const HELP: { pattern: RegExp; topic: HelpTopic }[] = [
       title: "Settings",
       summary: "Manage your workspace: members and roles, features, billing, the audit log, usage and API keys.",
       steps: [
-        "Invite teammates and give them a role: Owner, Admin, Analyst or Viewer.",
-        "Viewers can read everything but can't change deals.",
+        "Invite teammates and give them a role: Owner, Admin, Analyst, Viewer, Auditor or External.",
+        "Viewers can read everything but can't change deals. Auditors can also export the audit log and see usage.",
+        "External members (lenders, partners) see only the deals you share with them, from the Share button on a deal.",
         "Usage shows active users and activity for licensing; API keys give other systems read-only access to deals.",
         "Webhooks notify another system (a CRM, Slack workflow or data pipeline) when deals change stage or reports are generated.",
         "In Audit log, export the full history as CSV or JSON for compliance reviews.",

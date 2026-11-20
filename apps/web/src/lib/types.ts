@@ -1,6 +1,6 @@
 /** API types (mirror apps/api/app/schemas.py and the engine's result shape). */
 
-export type Role = "owner" | "admin" | "analyst" | "viewer";
+export type Role = "owner" | "admin" | "analyst" | "viewer" | "auditor" | "external";
 
 export interface Membership {
   org_id: string;
