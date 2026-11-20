@@ -12,6 +12,7 @@ import {
   Menu,
   Monitor,
   Moon,
+  PieChart,
   Settings,
   Sun,
 } from "lucide-react";
@@ -23,6 +24,7 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 import { BrandStyle, SidebarBrand } from "@/components/branding";
 import { CommandPalette } from "@/components/command-palette";
 import { HelpPanel } from "@/components/help-panel";
+import { NotificationBell } from "@/components/notification-bell";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -40,6 +42,7 @@ const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/deals", label: "Deals", icon: Building2 },
   { href: "/compare", label: "Compare", icon: GitCompareArrows },
+  { href: "/portfolio", label: "Portfolio", icon: PieChart },
   { href: "/scorecard", label: "Scorecard", icon: Gauge },
   { href: "/glossary", label: "Glossary", icon: BookOpen },
   { href: "/settings", label: "Settings", icon: Settings },
@@ -202,6 +205,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <Badge variant="outline" className="hidden sm:inline-flex">
             Engine v1.0 · deterministic
           </Badge>
+          <NotificationBell />
           <HelpPanel />
           <ThemeToggle />
           <DropdownMenu>

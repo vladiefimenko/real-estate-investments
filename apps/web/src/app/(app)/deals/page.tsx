@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Building2, Columns3, FileDown, GitCompareArrows, Plus, Rows3, Search } from "lucide-react";
+import { Building2, Columns3, FileDown, FileStack, GitCompareArrows, Plus, Rows3, Search } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
@@ -52,11 +52,18 @@ function DealsInner() {
         title="Deals"
         description="Every opportunity in your pipeline, with base-case returns from the latest calculation."
         actions={
-          hasRole("analyst") && (
-            <Button onClick={() => setOpen(true)}>
-              <Plus /> New deal
+          <>
+            <Button variant="outline" asChild>
+              <Link href="/documents">
+                <FileStack /> Document queue
+              </Link>
             </Button>
-          )
+            {hasRole("analyst") && (
+              <Button onClick={() => setOpen(true)}>
+                <Plus /> New deal
+              </Button>
+            )}
+          </>
         }
       />
       <div className="mb-4 flex flex-wrap items-center gap-2">

@@ -48,7 +48,7 @@ export function ShareDeal({ propertyId, dealName }: { propertyId: string; dealNa
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent
           title="Share with external members"
-          description={`Lenders and partners with the External role see only the deals you share with them, read-only: ${dealName}'s overview, documents, scenarios, financing, valuation and reports.`}
+          description={`Lenders and partners with the External role see only the deals you share with them, read-only: ${dealName}'s overview, scenarios, financing, valuation, reports, and the documents you put in its Data room tab (where you can also set an access end date and view-only access).`}
         >
           {shares.isLoading && <p className="text-sm text-muted-foreground">Loading…</p>}
           {shares.data?.length === 0 && (

@@ -433,7 +433,7 @@ def ic_memo(prop: Any, scenario_name: str, r: dict[str, Any], scenarios: list[di
     else:
         story.append(Paragraph("No document-verified fields; assumptions are user-entered or template defaults.",
                                S["body"]))
-    if ic and (ic.get("votes") or ic.get("decision")):
+    if ic and (ic.get("votes") or ic.get("decision") or ic.get("chain")):
         story.append(Paragraph(f"Investment Committee (round {ic.get('round') or 1})", S["h2"]))
         dec = ic.get("decision")
         if dec:
@@ -448,6 +448,19 @@ def ic_memo(prop: Any, scenario_name: str, r: dict[str, Any], scenarios: list[di
             rows = [["Member", "Vote", "Comment"]] + [[v["name"], v["vote"].title(),
                                                       Paragraph(_esc(v.get("comment") or ""), S["small"])]
                                                      for v in ic["votes"]]
+            t = _table(rows, [1.8 * inch, 1.0 * inch, 4.5 * inch])
+            t.setStyle(TableStyle([("ALIGN", (0, 0), (-1, -1), "LEFT"), ("VALIGN", (0, 0), (-1, -1), "TOP")]))
+            story.append(t)
+        if ic.get("chain"):
+            story.append(Spacer(1, 6))
+            story.append(Paragraph(f"<b>Approval chain:</b> {_esc(ic.get('chain_status') or 'pending')}", S["body"]))
+            rows = [["Step", "Status", "Sign-offs"]]
+            for i, st in enumerate(ic["chain"], 1):
+                signs = "; ".join(f"{a['name']} {'approved' if a['action'] == 'approve' else 'declined'} "
+                                  f"{str(a.get('at', ''))[:10]}" + (f": {a['comment']}" if a.get("comment") else "")
+                                  for a in st.get("actions") or []) or "Waiting on " + ", ".join(st.get("approver_names") or [])
+                rows.append([Paragraph(_esc(f"{i}. {st['name']}"), S["small"]), st["status"].title(),
+                             Paragraph(_esc(signs), S["small"])])
             t = _table(rows, [1.8 * inch, 1.0 * inch, 4.5 * inch])
             t.setStyle(TableStyle([("ALIGN", (0, 0), (-1, -1), "LEFT"), ("VALIGN", (0, 0), (-1, -1), "TOP")]))
             story.append(t)
@@ -750,4 +763,57 @@ def presentation(prop: Any, scenario_name: str, r: dict[str, Any], *, title: str
 
     frame = _presentation_frame(prop.is_demo, (firm_name or "AXIOM").upper()[:40], title or prop.name)
     doc.build(story, onFirstPage=frame, onLaterPages=frame)
+    return buf.getvalue()
+
+
+# ---------------------------------------------------------------- portfolio pack
+def portfolio_pack(title: str, sections: list[dict[str, Any]], deals: list[list[Any]] | None, *,
+                   include_concentration: bool, demo: bool, prepared_by: str) -> bytes:
+    """Board / IC portfolio package: totals, one breakdown per chosen dimension, then the deal list."""
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=LETTER, leftMargin=0.6 * inch, rightMargin=0.6 * inch,
+                            topMargin=0.7 * inch, bottomMargin=0.6 * inch, title=title, author=prepared_by)
+    t0 = sections[0]["totals"]
+    story: list[Any] = [Paragraph(_esc(title), S["h1"]),
+                        Paragraph(f"Prepared by {_esc(prepared_by)} · {datetime.now(timezone.utc):%B %d, %Y} · "
+                                  "base-case figures from the latest calculation", S["small"]), Spacer(1, 8)]
+    if demo:
+        story.append(Paragraph("<font color='#B42318'><b>Includes fictional demo deals.</b></font>", S["small"]))
+    story.append(_metric_grid([("Deals", str(t0["deals"])), ("Volume", usd_short(t0["volume"])),
+                               ("Year-1 NOI", usd_short(t0["noi"])), ("Equity-weighted IRR", pct(t0["irr_levered"]))]))
+    for sec in sections:
+        story.append(Paragraph(f"By {sec['dimension_label'].lower()}", S["h2"]))
+        conc = sec["concentration"]
+        if include_concentration and conc["hhi"] is not None:
+            note = (f"Concentration: <b>{conc['level']}</b> (HHI {conc['hhi']:.2f}; largest segment "
+                    f"{pct(conc['top_share'], 0)} of volume).")
+            if conc["flags"]:
+                note += " Above the 40% single-segment guideline: " + "; ".join(_esc(f) for f in conc["flags"]) + "."
+            story.append(Paragraph(note, S["body"]))
+            story.append(Spacer(1, 4))
+        rows = [["Segment", "Deals", "Volume", "Share", "NOI share", "Cap rate", "Lev. IRR", "Risk", "IRR / risk"]]
+        for r in sec["segments"]:
+            rows.append([Paragraph(_esc(r["segment"]), S["body"]), str(r["deals"]), usd_short(r["volume"]),
+                         pct(r["share"], 1), pct(r["noi_share"], 1), pct(r["cap_rate"]), pct(r["irr_levered"], 1),
+                         "n/a" if r["risk_score"] is None else str(int(r["risk_score"] + 0.5)),
+                         "n/a" if r["return_per_risk"] is None else f"{r['return_per_risk'] * 100:.1f}%"])
+        story.append(_table(rows, [1.9 * inch, 0.5 * inch, 0.8 * inch, 0.6 * inch, 0.75 * inch, 0.65 * inch,
+                                   0.65 * inch, 0.5 * inch, 0.7 * inch], align_right_from=1))
+    story.append(Paragraph("IRR / risk is the equity-weighted levered IRR earned per 10 points of Axiom risk score; "
+                           "higher means more return for the risk taken.", S["small"]))
+    if deals:
+        story.append(PageBreak())
+        story.append(Paragraph("Deals in this report", S["h2"]))
+        rows = [["Deal", "Market", "Type", "Stage", "Price", "Cap", "Lev. IRR", "Risk"]]
+        for p, r in deals:
+            rows.append([Paragraph(_esc(p.name), S["body"]),
+                         Paragraph(_esc(", ".join(x for x in (p.city, p.state) if x) or "n/a"), S["body"]),
+                         TYPE_LABELS.get(p.property_type, p.property_type),
+                         p.status.upper() if p.status == "ic" else p.status.title(), usd_short(p.purchase_price),
+                         pct(r.cap_rate) if r else "n/a", pct(r.irr_levered) if r else "n/a",
+                         "n/a" if not r or r.risk_score is None else str(int(r.risk_score + 0.5))])
+        story.append(_table(rows, [1.9 * inch, 1.3 * inch, 0.9 * inch, 0.8 * inch, 0.7 * inch, 0.55 * inch,
+                                   0.65 * inch, 0.45 * inch], align_right_from=4))
+    deco = _decorate(demo, "Portfolio Review")
+    doc.build(story, onFirstPage=deco, onLaterPages=deco)
     return buf.getvalue()

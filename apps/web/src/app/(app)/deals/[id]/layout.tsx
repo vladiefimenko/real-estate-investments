@@ -21,12 +21,14 @@ import { cn } from "@/lib/utils";
 import { gateError, type GateError } from "@/lib/workflow";
 
 // Tabs an external member (lender/partner) can open; the others call endpoints they can't use.
-const EXTERNAL_TABS = new Set(["", "documents", "scenarios", "financing", "valuation", "reports"]);
+// Guests get the data room (only the documents shared with them) instead of the full Documents tab.
+const EXTERNAL_TABS = new Set(["", "data-room", "scenarios", "financing", "valuation", "reports"]);
 
 const TABS: { slug: string; label: string; feature?: string }[] = [
   { slug: "", label: "Overview" },
   { slug: "underwriting", label: "Underwriting" },
   { slug: "documents", label: "Documents" },
+  { slug: "data-room", label: "Data room" },
   { slug: "scenarios", label: "Scenarios & Risk", feature: "scenarios" },
   { slug: "financing", label: "Financing" },
   { slug: "valuation", label: "Valuation", feature: "valuation" },

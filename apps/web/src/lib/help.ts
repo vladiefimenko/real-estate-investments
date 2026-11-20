@@ -45,6 +45,20 @@ export const HELP: { pattern: RegExp; topic: HelpTopic }[] = [
     },
   },
   {
+    pattern: new RegExp(`${DEAL}/data-room`),
+    topic: {
+      title: "Data room",
+      summary: "The documents you share with lenders and partners, and who has looked at them.",
+      steps: [
+        "Switch documents on to put them in the data room; guests see nothing else.",
+        "Publish package adds the latest one-pager, investment memo and Excel model in one click (IC votes are never included).",
+        "Guests: set an access end date (it stops automatically) and turn downloads off for view-only access.",
+        "PDFs a guest downloads are stamped with their email and the date.",
+        "The access log shows every guest view and download.",
+      ],
+    },
+  },
+  {
     pattern: new RegExp(`${DEAL}/underwriting`),
     topic: {
       title: "Underwriting",
@@ -55,6 +69,7 @@ export const HELP: { pattern: RegExp; topic: HelpTopic }[] = [
         "Yellow flags mark aggressive assumptions (for example rent growth above 8% or an exit cap below 3.5%).",
         "Open Model to see the year-by-year cash flow.",
         "Libraries: save your standard assumptions once and apply them to any deal in one click.",
+        "History: every calculation is kept. Name versions (e.g. 'Sent to lender'), compare any two, or restore an earlier one.",
       ],
       terms: ["noi", "vacancy", "expense-ratio", "exit-cap", "dscr"],
     },
@@ -156,7 +171,8 @@ export const HELP: { pattern: RegExp; topic: HelpTopic }[] = [
         "Hover any ⓘ icon to learn what a number means.",
         "Click a flag in the Risk screen to see why it was raised and what to check.",
         "Change the Stage as the deal moves through your pipeline; your workspace may require some steps first.",
-        "At Investment Committee, members vote here and an admin records the decision, which goes into the IC memo.",
+        "At Investment Committee, members vote here and an admin records the decision, which goes into the IC memo. If your workspace has an approval chain, each step's approvers sign off in order first.",
+        "The bell in the top bar shows approvals waiting on you and IC outcomes.",
         "Present opens a clean full-screen slide view of the deal for screen sharing: arrow keys move between slides, F goes full screen, Esc exits.",
         "Typical order: Documents → Underwriting → Scenarios & Risk → Reports.",
       ],
@@ -190,6 +206,33 @@ export const HELP: { pattern: RegExp; topic: HelpTopic }[] = [
         "Alerts list deals whose risk screen or covenants need attention.",
       ],
       terms: ["pipeline", "aum", "cap-rate", "irr"],
+    },
+  },
+  {
+    pattern: /^\/documents/,
+    topic: {
+      title: "Document queue",
+      summary: "Every document across your deals and whether it has been processed.",
+      steps: [
+        "Filter by status to find documents that failed or are still waiting.",
+        "Tick documents (up to 100) and click Re-process; deals at Investment Committee are processed first.",
+        "Retry failed re-runs every failed document in one go.",
+      ],
+    },
+  },
+  {
+    pattern: /^\/portfolio/,
+    topic: {
+      title: "Portfolio",
+      summary: "How capital is spread across markets, property types, sponsors, building ages and stages, and how each part is performing.",
+      steps: [
+        "Pick a breakdown (Market, Property type, Sponsor…) and which deals to include at the top.",
+        "Share of volume shows concentration; a warning appears when one segment is over 40% of the portfolio.",
+        "IRR / risk compares return to Axiom's risk score: higher means more return for the risk taken.",
+        "Build report creates a board or IC PDF with the breakdowns you choose.",
+        "Set a deal's sponsor from Edit on the deal's Overview.",
+      ],
+      terms: ["irr", "cap-rate", "noi", "risk-score"],
     },
   },
   {
@@ -249,7 +292,7 @@ export const HELP: { pattern: RegExp; topic: HelpTopic }[] = [
         "Usage shows active users and activity for licensing; API keys give other systems read-only access to deals.",
         "Webhooks notify another system (a CRM, Slack workflow or data pipeline) when deals change stage or reports are generated.",
         "In Audit log, export the full history as CSV or JSON for compliance reviews.",
-        "Workflow sets what must be done before a deal moves to Underwriting, IC or Closed.",
+        "Workflow sets what must be done before a deal moves to Underwriting, IC or Closed, and an optional IC approval chain (ordered sign-offs, each notified in turn).",
         "Branding puts your firm's name, logo and color on the app and on every PDF report.",
       ],
     },

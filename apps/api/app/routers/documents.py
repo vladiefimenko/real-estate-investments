@@ -41,6 +41,8 @@ def _doc(ctx: OrgContext, document_id: uuid.UUID) -> Document:
         ctx.get_property(doc.property_id)  # deleted deals, and deals not shared with an external member
     except HTTPException as exc:
         raise HTTPException(404, "Document not found") from exc
+    if ctx.is_external and not doc.data_room:  # guests only see what's been put in the data room
+        raise HTTPException(404, "Document not found")
     return doc
 
 
@@ -82,8 +84,10 @@ async def upload_document(
 @router.get("/properties/{property_id}/documents", response_model=list[DocumentOut])
 def list_documents(property_id: uuid.UUID, ctx: OrgContext = Depends(deal_reader)):
     prop = ctx.get_property(property_id)
-    return ctx.db.scalars(select(Document).where(Document.property_id == prop.id, Document.deleted_at.is_(None))
-                          .order_by(Document.created_at.desc())).all()
+    q = select(Document).where(Document.property_id == prop.id, Document.deleted_at.is_(None))
+    if ctx.is_external:
+        q = q.where(Document.data_room.is_(True))
+    return ctx.db.scalars(q.order_by(Document.created_at.desc())).all()
 
 
 @router.get("/documents/{document_id}", response_model=DocumentOut)
@@ -126,6 +130,8 @@ def delete_document(document_id: uuid.UUID, ctx: OrgContext = Depends(analyst)):
 @router.get("/documents/{document_id}/url")
 def document_url(document_id: uuid.UUID, download: bool = False, ctx: OrgContext = Depends(deal_reader)):
     doc = _doc(ctx, document_id)
+    if ctx.is_external:  # guests download through the data room so files are watermarked and logged
+        raise HTTPException(403, "Use the data room to download this document")
     return {"url": get_storage().signed_url(doc.file_url, doc.name, doc.mime_type, inline=not download),
             "expires_in": get_settings().signed_url_seconds}
 
@@ -133,6 +139,9 @@ def document_url(document_id: uuid.UUID, download: bool = False, ctx: OrgContext
 @router.get("/documents/{document_id}/pages", response_model=list[PageOut])
 def document_pages(document_id: uuid.UUID, ctx: OrgContext = Depends(deal_reader)):
     doc = _doc(ctx, document_id)
+    if ctx.is_external:  # the data room access log records every guest view
+        ctx.audit("dataroom.view", "document", doc.id, property_id=doc.property_id, name=doc.name)
+        ctx.db.commit()
     pages = ctx.db.scalars(select(DocumentPage).where(DocumentPage.document_id == doc.id)
                            .order_by(DocumentPage.page_number)).all()
     storage = get_storage()
@@ -196,6 +205,9 @@ def document_extractions(document_id: uuid.UUID, ctx: OrgContext = Depends(deal_
 def property_extractions(property_id: uuid.UUID, status: str | None = None, ctx: OrgContext = Depends(deal_reader)):
     prop = ctx.get_property(property_id)
     q = select(ExtractedData).where(ExtractedData.property_id == prop.id)
+    if ctx.is_external:
+        q = q.where(ExtractedData.document_id.in_(select(Document.id).where(
+            Document.property_id == prop.id, Document.data_room.is_(True))))
     if status:
         q = q.where(ExtractedData.status.in_(status.split(",")))
     return ctx.db.scalars(q.order_by(ExtractedData.field_path, ExtractedData.version.desc())).all()

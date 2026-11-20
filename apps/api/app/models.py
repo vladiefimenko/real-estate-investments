@@ -23,6 +23,8 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     Uuid,
+    false,
+    true,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -169,6 +171,8 @@ class Document(Base, TimestampMixin):
     error: Mapped[str | None] = mapped_column(Text)
     uploaded_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # In the deal's data room: the only documents external members (lenders, partners) can see.
+    data_room: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
 
 
 class DocumentPage(Base):
@@ -252,6 +256,7 @@ class UnderwritingResult(Base):
     risk_score: Mapped[float | None] = mapped_column(Float)
     assumptions_snapshot: Mapped[dict[str, Any]] = mapped_column(JSONType, nullable=False)
     full_cashflow_json: Mapped[dict[str, Any]] = mapped_column(JSONType, nullable=False)
+    label: Mapped[str | None] = mapped_column(String(120))  # set when someone saves this as a named version
 
 
 class FinancingStructure(Base, TimestampMixin):
@@ -379,6 +384,8 @@ class DealShare(Base):
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     created_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # access ends automatically
+    can_download: Mapped[bool] = mapped_column(Boolean, default=True, server_default=true(), nullable=False)
 
 
 class IcVote(Base, TimestampMixin):
@@ -393,6 +400,23 @@ class IcVote(Base, TimestampMixin):
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     vote: Mapped[str] = mapped_column(String(20), nullable=False)
     comment: Mapped[str | None] = mapped_column(Text)
+
+
+class Notification(Base):
+    """An in-app notification for one member of one workspace."""
+
+    __tablename__ = "notifications"
+    __table_args__ = (Index("ix_notifications_user_created", "user_id", "created_at"),)
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=new_id)
+    org_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("organizations.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    kind: Mapped[str] = mapped_column(String(40), nullable=False)
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    body: Mapped[str | None] = mapped_column(Text)
+    link: Mapped[str | None] = mapped_column(String(300))
+    property_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
 class StoredObject(Base):

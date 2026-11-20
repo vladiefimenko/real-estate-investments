@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -19,11 +20,14 @@ from ..models import (
     Scenario,
     UnderwritingResult,
     User,
+    utcnow,
 )
 from ..services.workflow import change_status, unmet
 from ..schemas import PropertyCreate, PropertyOut, PropertySummary, PropertyUpdate
 from ..services.property_types import catalogue, default_assumptions
 from ..services.underwriting import headline, run_and_store, sync_property_to_scenarios
+
+SYSTEM_ATTRIBUTES = ("ic", "waterfall", "development")
 
 router = APIRouter(tags=["properties"])
 
@@ -61,7 +65,8 @@ def list_properties(
     stmt = select(Property, User.name).outerjoin(User, User.id == Property.owner_id).where(
         Property.org_id == ctx.org.id, Property.deleted_at.is_(None))
     if ctx.is_external:  # lenders and partners see only the deals shared with them
-        stmt = stmt.where(Property.id.in_(select(DealShare.property_id).where(DealShare.user_id == ctx.user.id)))
+        stmt = stmt.where(Property.id.in_(select(DealShare.property_id).where(
+            DealShare.user_id == ctx.user.id, or_(DealShare.expires_at.is_(None), DealShare.expires_at > utcnow()))))
     if status:
         stmt = stmt.where(Property.status.in_(status.split(",")))
     if property_type:
@@ -126,6 +131,18 @@ def update_property(property_id: uuid.UUID, body: PropertyUpdate, ctx: OrgContex
     if not changes:
         ctx.db.commit()
         return prop
+    if "attributes" in changes:
+        # Merge, never replace: keys owned by other features (IC votes, profit split, development inputs) can only
+        # change through their own endpoints, so a stale edit form can't overwrite them. Empty values remove a key.
+        merged = dict(prop.attributes or {})
+        for k, v in (changes["attributes"] or {}).items():
+            if k in SYSTEM_ATTRIBUTES:
+                continue
+            if v is None or v == "":
+                merged.pop(k, None)
+            else:
+                merged[k] = v
+        changes["attributes"] = merged
     before = {k: getattr(prop, k) for k in changes}
     for k, v in changes.items():
         setattr(prop, k, v)
@@ -187,17 +204,30 @@ def _jsonable(v):
 class ShareIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
     user_id: uuid.UUID
+    expires_at: datetime | None = None  # access ends automatically at this time
+    can_download: bool = True
 
 
 @router.get("/properties/{property_id}/shares")
 def list_shares(property_id: uuid.UUID, ctx: OrgContext = Depends(admin)):
     """External members of this workspace, and whether each can see this deal."""
     prop = ctx.get_property(property_id)
-    shared = set(ctx.db.scalars(select(DealShare.user_id).where(DealShare.property_id == prop.id)))
+    shares = {s.user_id: s for s in ctx.db.scalars(select(DealShare).where(DealShare.property_id == prop.id))}
+    now = utcnow()
+
+    def live(s: DealShare | None) -> bool:
+        if s is None:
+            return False
+        exp = s.expires_at
+        return exp is None or (exp if exp.tzinfo else exp.replace(tzinfo=timezone.utc)) > now
+
     rows = ctx.db.execute(select(User.id, User.name, User.email).join(
         OrganizationMember, OrganizationMember.user_id == User.id).where(
         OrganizationMember.org_id == ctx.org.id, OrganizationMember.role == "external").order_by(User.name)).all()
-    return [{"user_id": str(uid), "name": name, "email": email, "shared": uid in shared} for uid, name, email in rows]
+    return [{"user_id": str(uid), "name": name, "email": email, "shared": live(shares.get(uid)),
+             "expired": uid in shares and not live(shares[uid]),
+             "expires_at": shares[uid].expires_at.isoformat() if uid in shares and shares[uid].expires_at else None,
+             "can_download": shares[uid].can_download if uid in shares else True} for uid, name, email in rows]
 
 
 @router.post("/properties/{property_id}/shares", status_code=201)
@@ -207,13 +237,29 @@ def share_deal(property_id: uuid.UUID, body: ShareIn, ctx: OrgContext = Depends(
         OrganizationMember.org_id == ctx.org.id, OrganizationMember.user_id == body.user_id)).first()
     if member is None or member.role != "external":
         raise HTTPException(422, "Deals can only be shared with external members of this workspace")
-    exists = ctx.db.scalar(select(DealShare.id).where(DealShare.property_id == prop.id,
-                                                      DealShare.user_id == body.user_id))
-    if not exists:
-        ctx.db.add(DealShare(org_id=ctx.org.id, property_id=prop.id, user_id=body.user_id, created_by=ctx.user.id))
-        ctx.audit("deal.share", "property", prop.id, property_id=prop.id, user_id=str(body.user_id))
-        ctx.db.commit()
-    return {"property_id": str(prop.id), "user_id": str(body.user_id), "shared": True}
+    if body.expires_at is not None:
+        exp = body.expires_at if body.expires_at.tzinfo else body.expires_at.replace(tzinfo=timezone.utc)
+        if exp <= utcnow():
+            raise HTTPException(422, "The access end date must be in the future")
+    share = ctx.db.scalars(select(DealShare).where(DealShare.property_id == prop.id,
+                                                   DealShare.user_id == body.user_id)).first()
+    def same(a: datetime | None, b: datetime | None) -> bool:
+        norm = (lambda t: None if t is None else t if t.tzinfo else t.replace(tzinfo=timezone.utc))  # noqa: E731
+        return norm(a) == norm(b)
+
+    changed = share is None or not same(share.expires_at, body.expires_at) or share.can_download != body.can_download
+    if share is None:
+        share = DealShare(org_id=ctx.org.id, property_id=prop.id, user_id=body.user_id, created_by=ctx.user.id)
+        ctx.db.add(share)
+    share.expires_at = body.expires_at
+    share.can_download = body.can_download
+    if changed:  # re-sharing on the same terms is a no-op
+        ctx.audit("deal.share", "property", prop.id, property_id=prop.id, user_id=str(body.user_id),
+                  expires_at=body.expires_at.isoformat() if body.expires_at else None,
+                  can_download=body.can_download)
+    ctx.db.commit()
+    return {"property_id": str(prop.id), "user_id": str(body.user_id), "shared": True,
+            "expires_at": body.expires_at.isoformat() if body.expires_at else None, "can_download": body.can_download}
 
 
 @router.delete("/properties/{property_id}/shares/{user_id}", status_code=204)

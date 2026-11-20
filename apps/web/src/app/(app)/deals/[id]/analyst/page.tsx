@@ -27,6 +27,7 @@ const SUGGESTIONS = [
   "What are the biggest risks in these assumptions?",
   "Is debt service coverage comfortable? Walk me through DSCR and debt yield.",
   "Which sensitivity ranges should I test before IC?",
+  "What changed between the latest document versions?",
   "Draft an investment thesis paragraph for the IC memo.",
   "Compare going-in and exit cap rates – are we assuming compression?",
 ];
