@@ -34,7 +34,7 @@ jobs:
         with: { python-version: "3.13" }
       - name: Install LibreOffice (recalculates the Excel export in tests)
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libreoffice-calc
-      - run: pip install -e packages/financial-engine -e "apps/api[test]" pypdf
+      - run: pip install -e packages/financial-engine -e "apps/api[test]"  # no extra packages: tests must see exactly what production installs
       - name: Create RLS-bound app role and migrate
         env:
           PGPASSWORD: axiom_owner
