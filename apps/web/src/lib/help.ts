@@ -156,6 +156,7 @@ export const HELP: { pattern: RegExp; topic: HelpTopic }[] = [
         "Click a flag in the Risk screen to see why it was raised and what to check.",
         "Change the Stage as the deal moves through your pipeline; your workspace may require some steps first.",
         "At Investment Committee, members vote here and an admin records the decision, which goes into the IC memo.",
+        "Present opens a clean full-screen slide view of the deal for screen sharing: arrow keys move between slides, F goes full screen, Esc exits.",
         "Typical order: Documents → Underwriting → Scenarios & Risk → Reports.",
       ],
       terms: ["noi", "cap-rate", "irr", "equity-multiple", "dscr", "risk-score"],
