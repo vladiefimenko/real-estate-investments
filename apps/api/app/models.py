@@ -314,6 +314,19 @@ class AssumptionLibrary(Base, TimestampMixin):
     created_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
 
 
+class SavedView(Base, TimestampMixin):
+    """A user's named dashboard layout: filters plus which cards and sections show, in order. Private."""
+
+    __tablename__ = "saved_views"
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=new_id)
+    org_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("organizations.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    page: Mapped[str] = mapped_column(String(40), default="dashboard", nullable=False)
+    name: Mapped[str] = mapped_column(String(80), nullable=False)
+    config: Mapped[dict[str, Any]] = mapped_column(JSONType, nullable=False)
+    is_default: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+
 class ApiKey(Base):
     """Read-only API credential for a workspace.
 
