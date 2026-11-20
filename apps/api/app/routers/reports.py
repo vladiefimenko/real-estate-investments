@@ -18,6 +18,7 @@ from ..features import require_feature
 from ..models import ChatMessage, Property
 from ..schemas import ChatIn, ChatMessageOut
 from ..services import ai
+from ..services import analyst_prefs
 from ..services import branding as br
 from ..services.analyst import build_context, rules_answer, verified_fields
 from ..services.report_excel import build_workbook
@@ -190,23 +191,26 @@ def chat(property_id: uuid.UUID, body: ChatIn, ctx: OrgContext = Depends(viewer)
     ctx.db.commit()
     org_id, user_id, prop_id = ctx.org.id, ctx.user.id, prop.id
     use_ai = ai.ai_available()
+    prefs = analyst_prefs.effective(ctx)
+    pref_block = analyst_prefs.prompt_block(prefs)
 
     def events() -> Iterator[str]:
         chunks: list[str] = []
         model = ai.model_name() if use_ai else "axiom-rules"
         try:
             if use_ai:
-                for text in ai.stream_analyst(context, history, body.message, learning=body.learning_mode):
+                for text in ai.stream_analyst(context, history, body.message, learning=body.learning_mode,
+                                                 preferences=pref_block):
                     chunks.append(text)
                     yield f"data: {json.dumps({'type': 'delta', 'text': text})}\n\n"
             else:
-                text = rules_answer(context, body.message, learning=body.learning_mode)
+                text = rules_answer(context, body.message, learning=body.learning_mode, prefs=prefs)
                 for i in range(0, len(text), 40):
                     chunks.append(text[i:i + 40])
                     yield f"data: {json.dumps({'type': 'delta', 'text': text[i:i + 40]})}\n\n"
         except Exception as exc:  # noqa: BLE001 - surface a clean error to the client
             msg = f"\n\n_The analyst is unavailable right now ({type(exc).__name__}). Showing rule-based answer:_\n\n"
-            fallback = msg + rules_answer(context, body.message, learning=body.learning_mode)
+            fallback = msg + rules_answer(context, body.message, learning=body.learning_mode, prefs=prefs)
             chunks.append(fallback)
             model = "axiom-rules"
             yield f"data: {json.dumps({'type': 'delta', 'text': fallback})}\n\n"

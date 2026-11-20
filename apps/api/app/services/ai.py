@@ -164,13 +164,15 @@ deeper. The rules above still apply: never compute or invent figures that are no
 
 
 def stream_analyst(context: dict[str, Any], history: list[dict[str, str]], question: str,
-                   learning: bool = False) -> Iterator[str]:
+                   learning: bool = False, preferences: str | None = None) -> Iterator[str]:
     client = _client()
     system = [{"type": "text", "text": ANALYST_SYSTEM},
               {"type": "text", "text": "<deal_context>\n" + json.dumps(context, default=str, indent=1)
                + "\n</deal_context>", "cache_control": {"type": "ephemeral"}}]
     if learning:  # after the cached prefix, so toggling it does not invalidate the cache
         system.append({"type": "text", "text": LEARNING_SYSTEM})
+    if preferences:  # also after the cached prefix
+        system.append({"type": "text", "text": preferences})
     messages = [*history, {"role": "user", "content": question}]
     with client.beta.messages.stream(
         model=model_name(),

@@ -16,6 +16,7 @@ from .config import get_settings
 from .db import Base, engine
 from .routers import (
     analysis,
+    analyst_settings,
     auth,
     branding,
     documents,
@@ -114,7 +115,8 @@ def create_app() -> FastAPI:
 
     for r in (auth.router, orgs.router, properties.router, scenarios.router, analysis.router, documents.router,
               reports.router, libraries.router, enterprise.router, webhooks.router, workflow.router,
-              branding.router, insights.router, views.router):
+              branding.router, insights.router, views.router,
+              analyst_settings.router):
         app.include_router(r, prefix="/api")
     return app
 

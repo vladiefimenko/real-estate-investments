@@ -117,6 +117,8 @@ export const HELP: { pattern: RegExp; topic: HelpTopic }[] = [
         "Start with a suggested question, or ask your own (e.g. 'Why is DSCR low in year 1?').",
         "Every number in an answer comes from the stored underwriting results.",
         "Without an AI key, answers come from rule-based templates.",
+        "Customize sets your standards (e.g. flag DSCR below 1.30x, stress the exit cap +50 bps) and how answers are written; admins set workspace standards.",
+        "Under any answer, 'Remember a correction' saves a note the analyst keeps in mind for future questions.",
       ],
       terms: ["dscr", "irr"],
     },
