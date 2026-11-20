@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { ChevronLeft, Trash2 } from "lucide-react";
+import { ChevronLeft, MonitorPlay, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useParams, usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
@@ -103,6 +103,12 @@ export default function DealLayout({ children }: { children: React.ReactNode }) 
               {p.rentable_sf ? ` · ${p.rentable_sf.toLocaleString()} SF` : ""}
             </p>
           </div>
+          <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" asChild>
+            <Link href={`/present/${p.id}`} title="Full-screen view for sharing your screen">
+              <MonitorPlay /> Present
+            </Link>
+          </Button>
           {canEdit && (
             <div className="flex items-center gap-2">
               <label htmlFor="deal-status" className="text-xs text-muted-foreground">
@@ -139,6 +145,7 @@ export default function DealLayout({ children }: { children: React.ReactNode }) 
               )}
             </div>
           )}
+          </div>
         </div>
         {p.is_demo && (
           <Callout tone="danger" className="mt-3 py-2">

@@ -10,6 +10,7 @@ import {
   GitCompareArrows,
   Keyboard,
   LayoutDashboard,
+  MonitorPlay,
   Plus,
   Search,
   Settings,
@@ -126,6 +127,7 @@ export function CommandPalette() {
     out.push({ id: "keys", group: "Actions", label: "Keyboard shortcuts", hint: "?", icon: Keyboard, run: () => setHelp(true) });
     if (dealMatch) {
       const root = `/deals/${dealMatch[1]}`;
+      out.push({ id: "present", group: "Actions", label: "Present this deal", icon: MonitorPlay, keywords: "present slides screen share full screen", run: go(`/present/${dealMatch[1]}`) });
       const name = deals.data?.find((d) => d.id === dealMatch[1])?.name;
       for (const [slug, label] of DEAL_TABS)
         out.push({ id: `tab-${slug}`, group: name ? `This deal: ${stripDemo(name)}` : "This deal", label, icon: FileText, run: go(slug ? `${root}/${slug}` : root) });
