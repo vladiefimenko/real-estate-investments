@@ -8,16 +8,19 @@ import { toast } from "sonner";
 
 import { Callout, ErrorBlock, LoadingBlock } from "@/components/common";
 import { useDeal } from "@/components/deal-context";
+import { IcPanel } from "@/components/ic-panel";
 import { CashFlowChart, ExitSummary, HeadlineMetrics, RiskPanel, SectionCard, SourcesUses } from "@/components/deal-widgets";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/overlays";
 import { Input, Label, Select, Textarea } from "@/components/ui/primitives";
 import { useOrgKey, usePropertyTypes, useScenarioComparison, useScenarioResult } from "@/hooks/queries";
 import { api } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 import { dateTime, mult, pct, usd } from "@/lib/format";
 
 export default function OverviewPage() {
   const { property: p, base, canEdit } = useDeal();
+  const { hasRole } = useAuth();
   const result = useScenarioResult(base?.id);
   const comparison = useScenarioComparison(p.id);
   const types = usePropertyTypes();
@@ -46,6 +49,7 @@ export default function OverviewPage() {
         </Callout>
       )}
       <HeadlineMetrics r={r} />
+      {hasRole("viewer") && <IcPanel propertyId={p.id} />}
       <div className="grid gap-4 xl:grid-cols-3">
         <SectionCard
           title="Operating cash flow"

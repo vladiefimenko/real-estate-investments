@@ -10,7 +10,17 @@ from sqlalchemy import func, or_, select
 
 from ..deps import OrgContext, admin, analyst, deal_reader, viewer
 from ..features import PLANS
-from ..models import PROPERTY_STATUSES, DealShare, OrganizationMember, Property, Scenario, UnderwritingResult, User
+from ..models import (
+    PROPERTY_STATUSES,
+    ROLE_RANK,
+    DealShare,
+    OrganizationMember,
+    Property,
+    Scenario,
+    UnderwritingResult,
+    User,
+)
+from ..services.workflow import change_status, unmet
 from ..schemas import PropertyCreate, PropertyOut, PropertySummary, PropertyUpdate
 from ..services.property_types import catalogue, default_assumptions
 from ..services.underwriting import headline, run_and_store, sync_property_to_scenarios
@@ -109,6 +119,13 @@ def get_property(property_id: uuid.UUID, ctx: OrgContext = Depends(deal_reader))
 def update_property(property_id: uuid.UUID, body: PropertyUpdate, ctx: OrgContext = Depends(analyst)):
     prop = ctx.get_property(property_id)
     changes = body.model_dump(exclude_unset=True)
+    override = changes.pop("override_requirements", False)
+    new_status = changes.pop("status", None)
+    if new_status is not None:
+        change_status(ctx, prop, new_status, override=override)
+    if not changes:
+        ctx.db.commit()
+        return prop
     before = {k: getattr(prop, k) for k in changes}
     for k, v in changes.items():
         setattr(prop, k, v)
@@ -124,6 +141,7 @@ class BulkStatusIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
     ids: list[uuid.UUID] = Field(min_length=1, max_length=100)
     status: str
+    override_requirements: bool = False
 
     @field_validator("status")
     @classmethod
@@ -137,16 +155,13 @@ class BulkStatusIn(BaseModel):
 def bulk_status(body: BulkStatusIn, ctx: OrgContext = Depends(analyst)):
     """Move several deals to one stage. All-or-nothing: any unknown deal aborts the change."""
     props = [ctx.get_property(pid) for pid in dict.fromkeys(body.ids)]
-    changed = []
-    for prop in props:
-        if prop.status == body.status:
-            continue
-        before = prop.status
-        prop.status = body.status
-        prop.updated_by = ctx.user.id
-        ctx.audit("property.update", "property", prop.id, property_id=prop.id, bulk=True,
-                  changes={"status": {"before": before, "after": body.status}})
-        changed.append(str(prop.id))
+    override = body.override_requirements and ROLE_RANK[ctx.role] >= ROLE_RANK["admin"]
+    if not override:  # check every deal before changing any of them
+        blocked = {p.name: miss for p in props if p.status != body.status and (miss := unmet(ctx, p, body.status))}
+        if blocked:
+            raise HTTPException(422, {"message": f"{len(blocked)} deal(s) aren't ready for this stage",
+                                      "blocked": blocked, "can_override": ROLE_RANK[ctx.role] >= ROLE_RANK["admin"]})
+    changed = [str(p.id) for p in props if change_status(ctx, p, body.status, override=override, bulk=True)]
     ctx.db.commit()
     return {"status": body.status, "updated": changed, "unchanged": len(props) - len(changed)}
 

@@ -17,6 +17,7 @@ import { useAuth } from "@/lib/auth";
 import { mult, pct, STATUS_LABELS, STATUSES, stripDemo, TYPE_LABELS, usd, usdShort } from "@/lib/format";
 import type { Property } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { gateError } from "@/lib/workflow";
 
 function DealsInner() {
   const params = useSearchParams();
@@ -117,12 +118,21 @@ function BulkBar({ deals, selected, onClear }: { deals: Property[]; selected: st
   // Only act on deals still visible under the current filters.
   const ids = selected.filter((id) => deals.some((d) => d.id === id));
   const stage = useMutation({
-    mutationFn: (status: string) => api<{ updated: string[] }>("/api/properties/bulk-status", { body: { ids, status } }),
-    onSuccess: (r, status) => {
+    mutationFn: ({ status, override = false }: { status: string; override?: boolean }) =>
+      api<{ updated: string[] }>("/api/properties/bulk-status", { body: { ids, status, override_requirements: override } }),
+    onSuccess: (r, v) => {
       qc.invalidateQueries({ queryKey: [org] });
-      toast.success(`${r.updated.length} deal${r.updated.length === 1 ? "" : "s"} moved to ${STATUS_LABELS[status]}`);
+      toast.success(`${r.updated.length} deal${r.updated.length === 1 ? "" : "s"} moved to ${STATUS_LABELS[v.status]}`);
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e, v) => {
+      const g = gateError(e);
+      if (!g) return toast.error(e.message);
+      const list = Object.entries(g.blocked)
+        .map(([name, missing]) => `• ${name}: ${missing.join("; ")}`)
+        .join("\n");
+      if (g.canOverride && confirm(`${g.message}:\n\n${list}\n\nMove all selected deals anyway? This is logged.`)) stage.mutate({ status: v.status, override: true });
+      else if (!g.canOverride) toast.error(`${g.message}. ${Object.keys(g.blocked).join(", ")}`);
+    },
   });
   if (!ids.length) return null;
   const exportPack = async () => {
@@ -142,7 +152,7 @@ function BulkBar({ deals, selected, onClear }: { deals: Property[]; selected: st
       {hasRole("analyst") && (
         <Select
           value=""
-          onChange={(e) => e.target.value && stage.mutate(e.target.value)}
+          onChange={(e) => e.target.value && stage.mutate({ status: e.target.value })}
           className="h-8 w-44"
           aria-label="Move selected deals to stage"
           disabled={stage.isPending}

@@ -42,6 +42,7 @@ EVENTS: dict[str, str] = {
     "deal.deleted": "A deal is deleted",
     "report.generated": "Any report or export is generated",
     "verified_data.applied": "Verified document data is applied to a scenario",
+    "ic.decided": "The Investment Committee records a decision on a deal",
 }
 MAX_FAILURES = 10
 TIMEOUT_SECONDS = 5.0
@@ -64,6 +65,8 @@ def event_for(action: str, details: dict[str, Any]) -> str | None:
         return "report.generated"
     if action == "extraction.apply":
         return "verified_data.applied"
+    if action == "ic.decision":
+        return "ic.decided"
     return None
 
 
