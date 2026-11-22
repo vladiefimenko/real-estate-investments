@@ -114,6 +114,27 @@ PROPERTY_TYPES: dict[str, dict[str, Any]] = {
         "defaults": {"vacancy_rate": 0.06, "credit_loss_rate": 0.015, "rent_growth": 0.03, "opex_growth": 0.03,
                      "management_fee_pct": 0.035, "exit_cap_rate": 0.0625, "discount_rate": 0.085},
     },
+    "qsr": {
+        "label": "QSR (Quick-Service Restaurant)",
+        # Single-tenant, net-leased restaurant pads (e.g. Taco Bell, Chick-fil-A): income is the lease's base rent
+        # and the tenant pays taxes, insurance and maintenance, so the owner keeps most of the rent.
+        "revenue_mode": "lump_sum",
+        "fields": [
+            {"key": "brand", "label": "Brand / tenant", "type": "text"},
+            {"key": "guarantor", "label": "Lease guarantor", "type": "select",
+             "options": ["Corporate", "Franchisee", "Personal"]},
+            {"key": "lease_type", "label": "Lease structure", "type": "select",
+             "options": ["Absolute NNN", "NNN", "NN", "Ground lease"]},
+            {"key": "remaining_term_years", "label": "Remaining lease term (years)", "type": "number"},
+            {"key": "rent_increases", "label": "Rent increases", "type": "text"},
+            {"key": "drive_thru", "label": "Drive-thru", "type": "select", "options": ["Yes", "No"]},
+            {"key": "building_sf", "label": "Building size (SF)", "type": "number"},
+            {"key": "lot_acres", "label": "Lot size (acres)", "type": "number"},
+        ],
+        "defaults": {"vacancy_rate": 0.03, "credit_loss_rate": 0.0, "rent_growth": 0.02, "opex_growth": 0.025,
+                     "management_fee_pct": 0.01, "exit_cap_rate": 0.06, "discount_rate": 0.075,
+                     "opex_mode": "ratio", "opex_ratio": 0.03, "noi_margin": 0.93},
+    },
     "land": {
         "label": "Development Land",
         "revenue_mode": "lump_sum",
@@ -154,6 +175,7 @@ def default_assumptions(
     capex_psf = d.pop("capex_reserve_psf", None)
     opex_mode = d.pop("opex_mode", "line_items")
     opex_ratio = d.pop("opex_ratio", 0.40)
+    noi_margin = d.pop("noi_margin", None)  # NOI as a share of gross rent, for sizing starter revenue
     out: dict[str, Any] = {
         "purchase_price": purchase_price,
         "hold_period_years": hold_period_years,
@@ -193,7 +215,7 @@ def default_assumptions(
         out["rentable_sf"] = sf
         out["rent_psf_annual"] = round(implied_noi / 0.80 / (1 - out["vacancy_rate"]) / sf, 2)
     else:
-        out["gross_potential_rent"] = round(implied_noi / 0.55, 2)
+        out["gross_potential_rent"] = round(implied_noi / (noi_margin or 0.55), 2)
     if opex_mode == "line_items":
         egi_guess = implied_noi / (0.80 if meta["revenue_mode"] == "per_sf" else 0.55)
         opex_total = egi_guess - implied_noi - egi_guess * out["management_fee_pct"]

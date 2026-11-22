@@ -26,6 +26,7 @@ const TYPE_HINTS: Record<string, string> = {
   hospitality: "Hotels; income changes nightly, so expenses are high.",
   self_storage: "Storage units rented month to month.",
   student_housing: "Beds near a campus, leased by the academic year.",
+  qsr: "Quick-service restaurants (e.g. Taco Bell), usually one tenant on a net lease.",
   land: "Land held for development or ground lease.",
 };
 

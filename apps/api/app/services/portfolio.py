@@ -10,7 +10,7 @@ STAGE_LABELS = {"sourcing": "Sourcing", "underwriting": "Underwriting", "ic": "I
                 "closed": "Closed", "passed": "Passed"}
 TYPE_LABELS = {"multifamily": "Multifamily", "industrial": "Industrial", "office": "Office", "retail": "Retail",
                "mixed_use": "Mixed-Use", "hospitality": "Hospitality", "self_storage": "Self-Storage",
-               "student_housing": "Student Housing", "land": "Development Land"}
+               "student_housing": "Student Housing", "qsr": "QSR", "land": "Development Land"}
 CONCENTRATION_LIMIT = 0.40  # a single segment above this share of volume is flagged
 UNASSIGNED = ("Unknown", "No sponsor set")  # placeholders, not real segments: never flagged as concentration
 

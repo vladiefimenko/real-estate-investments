@@ -217,6 +217,23 @@ export const GLOSSARY: GlossaryEntry[] = [
       "The extra share of profits the sponsor (GP) earns above its share of the money it invested, once investors have cleared the agreed return hurdles.",
   },
   {
+    id: "qsr",
+    term: "QSR (quick-service restaurant)",
+    aka: ["fast food", "restaurant pad", "single-tenant net lease"],
+    category: "Income",
+    definition:
+      "A fast-food or fast-casual restaurant building, such as a Taco Bell or Chick-fil-A, usually leased to one tenant on a long net lease. Value depends mostly on the tenant's credit, the guarantor (corporate is stronger than a franchisee), the years left on the lease and the rent increases.",
+    typical: "Underwritten on the lease's base rent with a small reserve; cap rates depend heavily on the brand and guarantor.",
+  },
+  {
+    id: "nnn",
+    term: "Triple-net (NNN) lease",
+    aka: ["NNN", "net lease", "absolute net"],
+    category: "Income",
+    definition:
+      "A lease where the tenant pays the property's taxes, insurance and maintenance on top of rent, so the owner's income is close to the rent itself. 'Absolute NNN' means the tenant also covers roof and structure.",
+  },
+  {
     id: "breakeven-occupancy",
     term: "Breakeven occupancy",
     category: "Risk & analysis",
