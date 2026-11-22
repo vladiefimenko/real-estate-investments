@@ -21,6 +21,7 @@ EXPENSE_RATIO_BENCHMARKS = {
     "hospitality": 0.70,
     "self_storage": 0.40,
     "student_housing": 0.50,
+    "qsr": 0.05,  # single-tenant net lease: the tenant pays most expenses
     "land": 0.10,
 }
 

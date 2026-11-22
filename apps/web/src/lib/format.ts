@@ -79,6 +79,7 @@ export const TYPE_LABELS: Record<string, string> = {
   hospitality: "Hospitality",
   self_storage: "Self-Storage",
   student_housing: "Student Housing",
+  qsr: "QSR",
   land: "Development Land",
 };
 

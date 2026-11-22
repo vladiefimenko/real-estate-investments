@@ -46,7 +46,7 @@ S = {
 
 TYPE_LABELS = {"multifamily": "Multifamily", "industrial": "Industrial", "office": "Office", "retail": "Retail",
                "mixed_use": "Mixed-Use", "hospitality": "Hospitality", "self_storage": "Self-Storage",
-               "student_housing": "Student Housing", "land": "Development Land"}
+               "student_housing": "Student Housing", "qsr": "QSR", "land": "Development Land"}
 
 
 def usd(v: float | None, decimals: int = 0) -> str:
